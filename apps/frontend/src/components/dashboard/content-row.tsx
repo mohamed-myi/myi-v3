@@ -30,11 +30,9 @@ export function ContentRow({ title, items, type, showTimeRange = false, selected
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
     const ranges = [
-        // Backend keys: 'week', 'month', 'year', 'all'.
-        { label: "Last 7 Days", value: "week" },
-        { label: "Last Month", value: "month" },
-        { label: "Last Year", value: "year" },
-        { label: "All-Time", value: "all" }
+        { label: "Last 4 Weeks", value: "4weeks" },
+        { label: "Last 6 Months", value: "6months" },
+        { label: "All Time", value: "all" }
     ];
 
     const currentLabel = ranges.find(r => r.value === selectedRange)?.label || "All-Time";
