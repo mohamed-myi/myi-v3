@@ -2,7 +2,6 @@ import { prisma } from '../lib/prisma';
 import { startOfDay } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
 
-// Input for aggregation - one per listening event
 export interface AggregationInput {
     trackId: string;
     artistIds: string[];
@@ -10,7 +9,6 @@ export interface AggregationInput {
     msPlayed: number;
 }
 
-// Update all stat tables for a batch of newly added events
 export async function updateStatsForEvents(
     userId: string,
     events: AggregationInput[],
@@ -26,7 +24,6 @@ export async function updateStatsForEvents(
     ]);
 }
 
-// Increment UserTrackStats for each unique track
 async function updateTrackStats(
     userId: string,
     events: AggregationInput[]
@@ -71,7 +68,6 @@ async function updateTrackStats(
     await Promise.all(upserts);
 }
 
-// Increment UserArtistStats for each artist (tracks can have multiple artists)
 async function updateArtistStats(
     userId: string,
     events: AggregationInput[]
@@ -109,13 +105,11 @@ async function updateArtistStats(
     await Promise.all(upserts);
 }
 
-// Get start of local day for a UTC timestamp
 function getLocalDayBucket(playedAtUtc: Date, userTimezone: string): Date {
     const localTime = toZonedTime(playedAtUtc, userTimezone);
     return startOfDay(localTime);
 }
 
-// Update time bucket stats (DAY only - WEEK/MONTH computed via SQL SUM)
 async function updateTimeBucketStats(
     userId: string,
     events: AggregationInput[],
@@ -151,7 +145,7 @@ async function updateTimeBucketStats(
                 bucketDate: new Date(dayKey),
                 playCount: stats.count,
                 totalMs: BigInt(stats.ms),
-                uniqueTracks: 0, // Deferred - may add HyperLogLog later
+                uniqueTracks: 0,
             },
             update: {
                 playCount: { increment: stats.count },
@@ -163,7 +157,6 @@ async function updateTimeBucketStats(
     await Promise.all(upserts);
 }
 
-// Update hour-of-day histogram (UTC hours)
 async function updateHourStats(
     userId: string,
     events: AggregationInput[]
@@ -200,5 +193,4 @@ async function updateHourStats(
     await Promise.all(upserts);
 }
 
-// Export helper for testing
 export { getLocalDayBucket };

@@ -17,13 +17,11 @@ export interface SyncUserJob {
     userId: string;
 }
 
-// Minimum time between syncs for the same user 
 const SYNC_COOLDOWN_MS = 5 * 60 * 1000;
 
 async function processSync(job: Job<SyncUserJob>): Promise<SyncSummary> {
     const { userId } = job.data;
 
-    // Get user with settings for timezone and check sync cooldown
     const user = await prisma.user.findUnique({
         where: { id: userId },
         include: { settings: true },
@@ -39,14 +37,12 @@ async function processSync(job: Job<SyncUserJob>): Promise<SyncSummary> {
         }
     }
 
-    // Get valid access token
     const tokenResult = await getValidAccessToken(userId);
     if (!tokenResult) {
         await invalidateUserToken(userId);
         throw new Error(`No valid token for user ${userId}`);
     }
 
-    // Wait for rate limit clearance
     await waitForRateLimit();
 
     const afterTimestamp = user?.lastIngestedAt
@@ -64,17 +60,14 @@ async function processSync(job: Job<SyncUserJob>): Promise<SyncSummary> {
             return { added: 0, skipped: 0, updated: 0, errors: 0 };
         }
 
-        // Parse Spotify response into our format
         const events = parseRecentlyPlayed(response);
 
-        // Insert into database and get IDs for aggregation
         const { summary, results } = await insertListeningEventsWithIds(userId, events);
         await job.log(
             `Inserted ${summary.added}, skipped ${summary.skipped}, ` +
             `updated ${summary.updated}, errors ${summary.errors}`
         );
 
-        // Aggregate stats for newly added events only (idempotency)
         const addedEvents = results.filter(r => r.status === 'added');
         if (addedEvents.length > 0) {
             const aggregationInputs = addedEvents.map(r => ({
@@ -113,13 +106,12 @@ async function processSync(job: Job<SyncUserJob>): Promise<SyncSummary> {
     }
 }
 
-// Create and export the worker
 export const syncWorker = new Worker<SyncUserJob, SyncSummary>(
     'sync-user',
     processSync,
     {
         connection: redis,
-        concurrency: 5, // Process 5 users concurrently
+        concurrency: 5,
     }
 );
 
@@ -145,7 +137,6 @@ syncWorker.on('failed', (job, error) => {
     );
 });
 
-// Close the worker
 export async function closeSyncWorker(): Promise<void> {
     await syncWorker.close();
 }

@@ -2,7 +2,6 @@ import { prisma } from '../lib/prisma';
 import { queueArtistForMetadata } from '../lib/redis';
 import type { ParsedListeningEvent, SyncSummary, InsertResultWithIds } from '../types/ingestion';
 
-// Upsert album, returning internal ID
 async function upsertAlbum(
     album: ParsedListeningEvent['track']['album']
 ): Promise<string> {
@@ -23,7 +22,6 @@ async function upsertAlbum(
     return result.id;
 }
 
-// Upsert artist (minimal), queue for metadata if missing imageUrl
 async function upsertArtist(artist: {
     spotifyId: string;
     name: string;
@@ -41,7 +39,6 @@ async function upsertArtist(artist: {
         return existing.id;
     }
 
-    // New artist - create minimal and queue for metadata
     const created = await prisma.artist.create({
         data: {
             spotifyId: artist.spotifyId,
@@ -53,21 +50,18 @@ async function upsertArtist(artist: {
     return created.id;
 }
 
-// Upsert track with album and artist relations, return trackId and artistIds
 async function upsertTrack(
     track: ParsedListeningEvent['track']
 ): Promise<{ trackId: string; artistIds: string[] }> {
     const albumId = await upsertAlbum(track.album);
     const artistIds = await Promise.all(track.artists.map(upsertArtist));
 
-    // Check if track exists
     const existing = await prisma.track.findUnique({
         where: { spotifyId: track.spotifyId },
         select: { id: true },
     });
 
     if (existing) {
-        // Update track metadata
         await prisma.track.update({
             where: { id: existing.id },
             data: {
@@ -78,7 +72,6 @@ async function upsertTrack(
         return { trackId: existing.id, artistIds };
     }
 
-    // Create new track with artist relations
     const created = await prisma.track.create({
         data: {
             spotifyId: track.spotifyId,
@@ -95,7 +88,6 @@ async function upsertTrack(
     return { trackId: created.id, artistIds };
 }
 
-// Insert listening event (skips duplicates via unique constraint)
 export async function insertListeningEvent(
     userId: string,
     event: ParsedListeningEvent
@@ -104,14 +96,12 @@ export async function insertListeningEvent(
     return result.status;
 }
 
-// Insert listening event and return IDs for aggregation
 export async function insertListeningEventWithIds(
     userId: string,
     event: ParsedListeningEvent
 ): Promise<InsertResultWithIds> {
     const { trackId, artistIds } = await upsertTrack(event.track);
 
-    // Check if record exists
     const existing = await prisma.listeningEvent.findUnique({
         where: {
             userId_trackId_playedAt: {
@@ -126,7 +116,6 @@ export async function insertListeningEventWithIds(
     const baseResult = { trackId, artistIds, playedAt: event.playedAt, msPlayed: event.msPlayed };
 
     if (!existing) {
-        // New record - insert
         await prisma.listeningEvent.create({
             data: {
                 userId,
@@ -140,13 +129,10 @@ export async function insertListeningEventWithIds(
         return { status: 'added', ...baseResult };
     }
 
-    // Record exists
     if (event.source === 'api') {
-        // API data never overwrites - skip
         return { status: 'skipped', ...baseResult };
     }
 
-    // Import source - can claim estimated records
     if (existing.isEstimated && event.source === 'import') {
         await prisma.listeningEvent.update({
             where: {
@@ -165,11 +151,9 @@ export async function insertListeningEventWithIds(
         return { status: 'updated', ...baseResult };
     }
 
-    // Already has ground truth - skip
     return { status: 'skipped', ...baseResult };
 }
 
-// Batch insert with summary (original API)
 export async function insertListeningEvents(
     userId: string,
     events: ParsedListeningEvent[]
@@ -189,7 +173,6 @@ export async function insertListeningEvents(
     return summary;
 }
 
-// Batch insert returning results for aggregation
 export async function insertListeningEventsWithIds(
     userId: string,
     events: ParsedListeningEvent[]

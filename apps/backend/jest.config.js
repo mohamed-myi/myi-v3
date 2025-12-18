@@ -15,9 +15,14 @@ module.exports = {
                     'ts-jest',
                     {
                         isolatedModules: true,
+                        useESM: true,
                     },
                 ],
+                '^.+\\.js$': 'babel-jest',
             },
+            transformIgnorePatterns: [
+                'node_modules/(?!(p-retry|is-network-error)/)',
+            ],
         },
         {
             displayName: 'integration',
@@ -35,9 +40,14 @@ module.exports = {
                     'ts-jest',
                     {
                         isolatedModules: true,
+                        useESM: true,
                     },
                 ],
+                '^.+\\.js$': 'babel-jest',
             },
+            transformIgnorePatterns: [
+                'node_modules/(?!(p-retry|is-network-error)/)',
+            ],
         },
     ],
     collectCoverageFrom: [

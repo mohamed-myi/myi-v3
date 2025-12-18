@@ -1,17 +1,26 @@
 import Redis from 'ioredis';
 
-// Redis URL is required at runtime (Railway provides this)
-const redisUrl = process.env.REDIS_URL;
-if (!redisUrl) {
-    throw new Error('REDIS_URL environment variable is required');
+let _redis: Redis | null = null;
+
+function getRedisUrl(): string {
+    const url = process.env.REDIS_URL;
+    if (!url) {
+        throw new Error('REDIS_URL environment variable is required');
+    }
+    return url;
 }
 
-// Main Redis connection for BullMQ and general use
-export const redis = new Redis(redisUrl, {
-    maxRetriesPerRequest: null,
+export const redis: Redis = new Proxy({} as Redis, {
+    get(_, prop) {
+        if (!_redis) {
+            _redis = new Redis(getRedisUrl(), {
+                maxRetriesPerRequest: null,
+            });
+        }
+        return (_redis as any)[prop];
+    },
 });
 
-// Track requests per minute to stay under Spotify's 180/min limit
 const RATE_LIMIT_KEY = 'spotify:requests:minute';
 const RATE_LIMIT_MAX = 150;
 
@@ -29,7 +38,6 @@ export async function waitForRateLimit(): Promise<void> {
     }
 }
 
-// Artist metadata queue for deduplication
 const PENDING_ARTISTS_KEY = 'pending_artists';
 
 export async function queueArtistForMetadata(spotifyId: string): Promise<void> {
@@ -47,6 +55,25 @@ export async function popArtistsForMetadata(count: number): Promise<string[]> {
         }
     }
     return artists;
+}
+
+const PENDING_TRACKS_KEY = 'pending_tracks';
+
+export async function queueTrackForMetadata(spotifyId: string): Promise<void> {
+    await redis.sadd(PENDING_TRACKS_KEY, spotifyId);
+}
+
+export async function popTracksForMetadata(count: number): Promise<string[]> {
+    const tracks: string[] = [];
+    for (let i = 0; i < count; i++) {
+        const track = await redis.spop(PENDING_TRACKS_KEY);
+        if (track) {
+            tracks.push(track);
+        } else {
+            break;
+        }
+    }
+    return tracks;
 }
 
 // Close Redis connection

@@ -108,6 +108,7 @@ model ListeningEvent {
   playedAt        DateTime @map("played_at")
   msPlayed        Int      @map("ms_played")
   isEstimated     Boolean  @default(true) @map("is_estimated")
+  isSkip          Boolean  @default(false) @map("is_skip")
   source          String   @default("api")
   createdAt       DateTime @default(now()) @map("created_at")
 
