@@ -24,6 +24,9 @@ jobs:
       - name: Validate Prisma schema
         run: npx prisma validate
       
+      - name: Generate Prisma client
+        run: npx prisma generate
+      
       - name: TypeScript check (backend)
         run: npm run build --workspace=backend
       
