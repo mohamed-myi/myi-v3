@@ -1,9 +1,9 @@
 import { createHash, randomBytes } from 'crypto';
 import type { SpotifyTokenResponse, SpotifyUserProfile } from '../types/spotify';
+import { fetchWithRetry, SPOTIFY_API_URL } from './spotify-api';
 
 const SPOTIFY_AUTH_URL = 'https://accounts.spotify.com/authorize';
 const SPOTIFY_TOKEN_URL = 'https://accounts.spotify.com/api/token';
-const SPOTIFY_API_URL = 'https://api.spotify.com/v1';
 
 const SCOPES = [
     'user-read-recently-played',
@@ -38,10 +38,8 @@ export function generateState(): string {
 }
 
 // Build authorization URL
-export function buildAuthUrl(codeChallenge: string, state: string): string {
+export function buildAuthUrl(codeChallenge: string, state: string, showDialog: boolean = false): string {
     const { clientId, redirectUri } = getClientCredentials();
-
-    console.log('Building auth URL with redirect_uri:', redirectUri);
 
     const params = new URLSearchParams({
         client_id: clientId,
@@ -51,6 +49,7 @@ export function buildAuthUrl(codeChallenge: string, state: string): string {
         state,
         code_challenge_method: 'S256',
         code_challenge: codeChallenge,
+        show_dialog: showDialog ? 'true' : 'false',
     });
 
     return `${SPOTIFY_AUTH_URL}?${params.toString()}`;
@@ -62,8 +61,6 @@ export async function exchangeCodeForTokens(
     codeVerifier: string
 ): Promise<SpotifyTokenResponse> {
     const { clientId, clientSecret, redirectUri } = getClientCredentials();
-
-    console.log('Token exchange - redirect_uri:', redirectUri);
 
     const params = new URLSearchParams({
         grant_type: 'authorization_code',
@@ -140,18 +137,8 @@ export async function refreshAccessToken(refreshToken: string): Promise<SpotifyT
     return response.json() as Promise<SpotifyTokenResponse>;
 }
 
-// Get user profile
+// Get user profile using shared fetch wrapper
 export async function getUserProfile(accessToken: string): Promise<SpotifyUserProfile> {
-    const response = await fetch(`${SPOTIFY_API_URL}/me`, {
-        headers: {
-            Authorization: `Bearer ${accessToken}`,
-        },
-    });
-
-    if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`Failed to get user profile: ${error}`);
-    }
-
-    return response.json() as Promise<SpotifyUserProfile>;
+    return fetchWithRetry<SpotifyUserProfile>(`${SPOTIFY_API_URL}/me`, accessToken);
 }
+

@@ -9,6 +9,8 @@ import {
     exchangeCodeForTokens,
     getUserProfile,
 } from '../lib/spotify';
+import { syncUserQueue } from '../workers/queues';
+import { AUTH_RATE_LIMIT } from '../middleware/rate-limit';
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 const COOKIE_OPTIONS = {
@@ -19,8 +21,8 @@ const COOKIE_OPTIONS = {
 };
 
 export async function authRoutes(fastify: FastifyInstance) {
-    // GET /auth/login - Redirect to Spotify auth
-    fastify.get('/auth/login', async (request: FastifyRequest, reply: FastifyReply) => {
+    // GET /auth/login - Redirect to Spotify auth (stricter rate limit: 20/minute)
+    fastify.get('/auth/login', { config: { rateLimit: AUTH_RATE_LIMIT } }, async (request: FastifyRequest, reply: FastifyReply) => {
         const codeVerifier = generateCodeVerifier();
         const codeChallenge = generateCodeChallenge(codeVerifier);
         const state = generateState();
@@ -35,12 +37,12 @@ export async function authRoutes(fastify: FastifyInstance) {
             maxAge: 600,
         });
 
-        const authUrl = buildAuthUrl(codeChallenge, state);
+        const authUrl = buildAuthUrl(codeChallenge, state, true);
         return reply.redirect(authUrl);
     });
 
-    // GET /auth/callback - Handle Spotify OAuth callback
-    fastify.get('/auth/callback', async (request: FastifyRequest, reply: FastifyReply) => {
+    // GET /auth/callback - Handle Spotify OAuth callback (stricter rate limit: 20/minute)
+    fastify.get('/auth/callback', { config: { rateLimit: AUTH_RATE_LIMIT } }, async (request: FastifyRequest, reply: FastifyReply) => {
         const { code, state, error } = request.query as {
             code?: string;
             state?: string;
@@ -55,8 +57,9 @@ export async function authRoutes(fastify: FastifyInstance) {
 
         // Validate state
         const storedState = (request.cookies as Record<string, string>).oauth_state;
+
         if (!state || state !== storedState) {
-            fastify.log.warn('State mismatch in OAuth callback');
+            fastify.log.warn(`State mismatch: received '${state}' vs stored '${storedState}'`);
             return reply.redirect(`${FRONTEND_URL}?error=invalid_state`);
         }
 
@@ -146,8 +149,9 @@ export async function authRoutes(fastify: FastifyInstance) {
             reply.clearCookie('pkce_verifier', { path: '/' });
             reply.clearCookie('oauth_state', { path: '/' });
 
-            // todo - Trigger first poll of recent tracks 
-            fastify.log.info(`User ${user.id} logged in, first poll pending Phase 3`);
+            // Trigger first poll of recent tracks
+            fastify.log.info(`User ${user.id} logged in, triggering initial sync`);
+            await syncUserQueue.add(`sync-${user.id}`, { userId: user.id }, { jobId: user.id });
 
             return reply.redirect(FRONTEND_URL);
         } catch (err) {
@@ -158,14 +162,15 @@ export async function authRoutes(fastify: FastifyInstance) {
 
     // POST /auth/logout - Clear session
     fastify.post('/auth/logout', async (request: FastifyRequest, reply: FastifyReply) => {
-        reply.clearCookie('session', { path: '/' });
-        reply.clearCookie('auth_status', { path: '/' });
+        reply.clearCookie('session', { ...COOKIE_OPTIONS, maxAge: 0 });
+        reply.clearCookie('auth_status', { ...COOKIE_OPTIONS, httpOnly: false, maxAge: 0 });
         return { success: true };
     });
 
     // GET /auth/me - Get current user
     fastify.get('/auth/me', async (request: FastifyRequest, reply: FastifyReply) => {
-        const sessionUserId = (request.cookies as Record<string, string>).session;
+        const cookies = request.cookies as Record<string, string>;
+        const sessionUserId = cookies.session;
 
         if (!sessionUserId) {
             return reply.status(401).send({ error: 'Not authenticated' });

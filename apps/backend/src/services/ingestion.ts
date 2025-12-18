@@ -1,8 +1,8 @@
 import { prisma } from '../lib/prisma';
-import { queueArtistForMetadata } from '../lib/redis';
+import { queueArtistForMetadata, queueTrackForFeatures } from '../lib/redis';
 import type { ParsedListeningEvent, SyncSummary, InsertResultWithIds } from '../types/ingestion';
 
-async function upsertAlbum(
+export async function upsertAlbum(
     album: ParsedListeningEvent['track']['album']
 ): Promise<string> {
     const result = await prisma.album.upsert({
@@ -22,7 +22,7 @@ async function upsertAlbum(
     return result.id;
 }
 
-async function upsertArtist(artist: {
+export async function upsertArtist(artist: {
     spotifyId: string;
     name: string;
 }): Promise<string> {
@@ -50,7 +50,7 @@ async function upsertArtist(artist: {
     return created.id;
 }
 
-async function upsertTrack(
+export async function upsertTrack(
     track: ParsedListeningEvent['track']
 ): Promise<{ trackId: string; artistIds: string[] }> {
     const albumId = await upsertAlbum(track.album);
@@ -83,8 +83,12 @@ async function upsertTrack(
                 create: artistIds.map((artistId) => ({ artistId })),
             },
         },
-        select: { id: true },
+        select: { id: true, spotifyId: true },
     });
+
+    // Queue for audio features
+    await queueTrackForFeatures(created.spotifyId);
+
     return { trackId: created.id, artistIds };
 }
 

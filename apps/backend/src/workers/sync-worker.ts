@@ -12,6 +12,11 @@ import {
     SpotifyRateLimitError,
 } from '../lib/spotify-errors';
 import type { SyncSummary } from '../types/ingestion';
+import { workerLoggers } from '../lib/logger';
+import { setSyncWorkerRunning } from './worker-status';
+import { DEFAULT_JOB_OPTIONS } from './worker-config';
+
+const log = workerLoggers.sync;
 
 export interface SyncUserJob {
     userId: string;
@@ -116,26 +121,26 @@ export const syncWorker = new Worker<SyncUserJob, SyncSummary>(
 );
 
 syncWorker.on('completed', (job, result) => {
-    console.log(
-        JSON.stringify({
-            event: 'sync_completed',
-            userId: job.data.userId,
-            ...result,
-            timestamp: new Date().toISOString(),
-        })
-    );
+    log.info({ event: 'sync_completed', userId: job.data.userId, ...result }, 'Sync completed');
 });
 
 syncWorker.on('failed', (job, error) => {
-    console.error(
-        JSON.stringify({
-            event: 'sync_failed',
-            userId: job?.data.userId,
-            error: error.message,
-            timestamp: new Date().toISOString(),
-        })
-    );
+    const isExhausted = job && job.attemptsMade >= (DEFAULT_JOB_OPTIONS.attempts || 5);
+    if (isExhausted) {
+        log.error(
+            { event: 'sync_exhausted', userId: job?.data.userId, attempts: job?.attemptsMade },
+            'Sync job exhausted all retries'
+        );
+    } else {
+        log.warn(
+            { event: 'sync_retry', userId: job?.data.userId, attempt: job?.attemptsMade, error: error.message },
+            'Sync failed, will retry'
+        );
+    }
 });
+
+// Track worker status for health checks
+setSyncWorkerRunning(true);
 
 export async function closeSyncWorker(): Promise<void> {
     await syncWorker.close();

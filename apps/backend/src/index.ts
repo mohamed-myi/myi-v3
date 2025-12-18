@@ -6,40 +6,82 @@ config({ path: resolve(__dirname, '../../../.env') });
 
 import Fastify from 'fastify';
 import cookie from '@fastify/cookie';
+import cors from '@fastify/cors';
+import helmet from '@fastify/helmet';
 import { authRoutes } from './routes/auth';
 import { cronRoutes } from './routes/cron';
 import { importRoutes } from './routes/import';
 import { statsRoutes } from './routes/stats';
+import { userRoutes } from './routes/users';
+import { compareRoutes } from './routes/compare';
+import { healthRoutes } from './routes/health';
 import multipart from '@fastify/multipart';
 import { authMiddleware } from './middleware/auth';
+import { registerRateLimiting } from './middleware/rate-limit';
 import { closeRedis } from './lib/redis';
 import { closeSyncWorker } from './workers/sync-worker';
+import { generateRequestId, logger } from './lib/logger';
+import { globalErrorHandler } from './lib/error-handler';
+
+// CORS origins: production + local development
+const CORS_ORIGINS = process.env.NODE_ENV === 'production'
+  ? ['https://myi-v3-frontend.vercel.app']
+  : ['http://127.0.0.1:3000', 'http://localhost:3000', 'https://myi-v3-frontend.vercel.app'];
 
 export const build = async () => {
-  const server = Fastify({ logger: true });
+  const server = Fastify({
+    logger: {
+      level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
+    },
+    genReqId: () => generateRequestId(),
+  });
 
-  // Register plugins
-  server.register(cookie);
-  server.register(multipart, {
+  // Security headers (before other plugins)
+  await server.register(helmet, {
+    contentSecurityPolicy: false, // Disable CSP for API (no HTML served)
+    crossOriginResourcePolicy: { policy: 'cross-origin' }, // Allow CORS
+  });
+
+  // CORS configuration
+  await server.register(cors, {
+    origin: CORS_ORIGINS,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+    exposedHeaders: ['Set-Cookie'],
+  });
+
+  await server.register(cookie);
+  await server.register(multipart, {
     limits: {
       fileSize: 100 * 1024 * 1024, // 100MB Limit
     }
   });
 
+  // Rate limiting (before routes, after auth context is available)
+  await registerRateLimiting(server);
+
   // Auth middleware for protected routes
   server.addHook('preHandler', authMiddleware);
 
-  // Register routes
-  server.register(authRoutes);
-  server.register(cronRoutes);
-  server.register(importRoutes);
-  server.register(statsRoutes);
+  // Global error handler
+  server.setErrorHandler(globalErrorHandler);
 
-  // Health check
-  server.get('/health', async () => ({ status: 'ok' }));
+  // Register routes
+  await server.register(authRoutes);
+  await server.register(cronRoutes);
+  await server.register(importRoutes);
+  await server.register(statsRoutes);
+  await server.register(userRoutes);
+  await server.register(compareRoutes);
+  await server.register(healthRoutes);
 
   return server;
 };
+
+import { audioFeaturesWorker } from './workers/audio-features-worker';
+import { metadataWorker } from './workers/metadata-worker';
+import { topStatsWorker } from './workers/top-stats-worker';
 
 // Start server if main module
 if (require.main === module) {
@@ -48,10 +90,17 @@ if (require.main === module) {
       const server = await build();
       const port = Number(process.env.PORT) || 3001;
       await server.listen({ port, host: '0.0.0.0' });
-      console.log('Sync worker started');
+
+      logger.info('Server started, sync worker running');
+
+      // Start background workers
+      // In a real production setup, these would likely be separate processes/containers
+      audioFeaturesWorker().catch(err => logger.error({ error: err }, 'Audio Features Worker failed'));
+      metadataWorker().catch(err => logger.error({ error: err }, 'Metadata Worker failed'));
+      topStatsWorker().catch(err => logger.error({ error: err }, 'Top Stats Worker failed'));
 
       const shutdown = async () => {
-        console.log('Shutting down...');
+        logger.info('Shutting down gracefully...');
         await closeSyncWorker();
         await closeRedis();
         await server.close();
@@ -61,7 +110,7 @@ if (require.main === module) {
       process.on('SIGTERM', shutdown);
       process.on('SIGINT', shutdown);
     } catch (err) {
-      console.error(err);
+      logger.error({ error: err }, 'Server failed to start');
       process.exit(1);
     }
   };

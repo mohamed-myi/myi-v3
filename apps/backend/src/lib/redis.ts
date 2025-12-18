@@ -85,6 +85,35 @@ export async function popTracksForMetadata(count: number): Promise<string[]> {
     return tracks;
 }
 
+const PENDING_AUDIO_FEATURES_KEY = 'pending_audio_features';
+
+export async function queueTrackForFeatures(trackId: string): Promise<void> {
+    await redis.sadd(PENDING_AUDIO_FEATURES_KEY, trackId);
+}
+
+export async function popTracksForFeatures(count: number): Promise<string[]> {
+    const tracks: string[] = [];
+    for (let i = 0; i < count; i++) {
+        const track = await redis.spop(PENDING_AUDIO_FEATURES_KEY);
+        if (track) {
+            tracks.push(track);
+        } else {
+            break;
+        }
+    }
+    return tracks;
+}
+
+// Checks Redis connectivity for health checks.
+export async function pingRedis(): Promise<boolean> {
+    try {
+        const result = await redis.ping();
+        return result === 'PONG';
+    } catch {
+        return false;
+    }
+}
+
 // Close Redis connection
 export async function closeRedis(): Promise<void> {
     await redis.quit();

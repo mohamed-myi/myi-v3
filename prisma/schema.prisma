@@ -26,6 +26,8 @@ model User {
   timeBucketStats UserTimeBucketStats[]
   hourStats       UserHourStats[]
   importJobs      ImportJob[]
+  spotifyTopTracks SpotifyTopTrack[]
+  spotifyTopArtists SpotifyTopArtist[]
 
   @@map("users")
 }
@@ -56,6 +58,8 @@ model Track {
   artists         TrackArtist[]
   listeningEvents ListeningEvent[]
   userStats       UserTrackStats[]
+  audioFeatures   AudioFeatures?
+  spotifyTopTracks SpotifyTopTrack[]
 
   @@index([spotifyId])
   @@map("tracks")
@@ -70,6 +74,7 @@ model Artist {
 
   tracks          TrackArtist[]
   userStats       UserArtistStats[]
+  spotifyTopArtists SpotifyTopArtist[]
 
   @@index([spotifyId])
   @@map("artists")
@@ -225,4 +230,57 @@ model MetadataRefreshLog {
   @@unique([entityType, entityId])
   @@index([nextRefreshAt])
   @@map("metadata_refresh_log")
+}
+
+model AudioFeatures {
+  trackId           String   @id @map("track_id")
+  acousticness      Float
+  danceability      Float
+  energy            Float
+  instrumentalness  Float
+  key               Int
+  liveness          Float
+  loudness          Float
+  mode              Int
+  speechiness       Float
+  tempo             Float
+  timeSignature     Int      @map("time_signature")
+  valence           Float
+  durationMs        Int      @map("duration_ms")
+
+  track             Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
+
+  @@map("audio_features")
+}
+
+model SpotifyTopTrack {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  trackId   String   @map("track_id")
+  term      String   // 'short_term', 'medium_term', 'long_term'
+  rank      Int      // 1-50
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  track     Track    @relation(fields: [trackId], references: [id])
+
+  @@unique([userId, term, rank])
+  @@unique([userId, term, trackId])
+  @@map("spotify_top_tracks")
+}
+
+model SpotifyTopArtist {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  artistId  String   @map("artist_id")
+  term      String   // 'short_term', 'medium_term', 'long_term'
+  rank      Int      // 1-50
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  artist    Artist   @relation(fields: [artistId], references: [id])
+
+  @@unique([userId, term, rank])
+  @@unique([userId, term, artistId])
+  @@map("spotify_top_artists")
 }

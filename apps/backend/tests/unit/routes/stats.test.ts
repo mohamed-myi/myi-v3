@@ -10,8 +10,12 @@ jest.mock('@/lib/prisma', () => ({
     prisma: {
         userTrackStats: { aggregate: jest.fn(), findMany: jest.fn() },
         userArtistStats: { findFirst: jest.fn(), findMany: jest.fn() },
-        listeningEvent: { findMany: jest.fn(), count: jest.fn() },
-        user: { findUnique: jest.fn() } // For auth
+        listeningEvent: { findMany: jest.fn(), count: jest.fn(), groupBy: jest.fn() },
+        user: { findUnique: jest.fn() }, // For auth
+        track: { findMany: jest.fn() },
+        spotifyTopTrack: { findMany: jest.fn() },
+        spotifyTopArtist: { findMany: jest.fn() },
+        $queryRaw: jest.fn(),
     },
 }));
 
@@ -20,6 +24,16 @@ jest.mock('@/lib/redis', () => ({
         get: jest.fn(),
         setex: jest.fn(),
     },
+}));
+
+jest.mock('bullmq', () => ({
+    Queue: jest.fn().mockImplementation(() => ({
+        add: jest.fn(),
+    })),
+    Worker: jest.fn().mockImplementation(() => ({
+        on: jest.fn(),
+        close: jest.fn(),
+    })),
 }));
 
 // Mock auth middleware to bypass real cookie checks and inject userId
@@ -101,11 +115,15 @@ describe('Stats API', () => {
     describe('GET /me/stats/top/tracks', () => {
         it('should return top tracks list', async () => {
             (redis.get as jest.Mock).mockResolvedValue(null);
-            (prisma.userTrackStats.findMany as jest.Mock).mockResolvedValue([
+            (prisma.spotifyTopTrack.findMany as jest.Mock).mockResolvedValue([
                 {
-                    playCount: 10,
-                    totalMs: BigInt(30000),
-                    track: { name: 'Song 1', artists: [] }
+                    rank: 1,
+                    track: {
+                        spotifyId: 'track-1',
+                        name: 'Song 1',
+                        artists: [],
+                        album: { imageUrl: 'https://example.com/album.jpg' }
+                    }
                 }
             ]);
 
@@ -117,8 +135,155 @@ describe('Stats API', () => {
             expect(response.statusCode).toBe(200);
             const body = response.json();
             expect(body).toHaveLength(1);
-            expect(body[0].track.name).toBe('Song 1');
-            expect(body[0].totalMs).toBe('30000');
+            expect(body[0].name).toBe('Song 1');
+            expect(body[0].rank).toBe(1);
+        });
+
+        it('should return cached tracks on cache hit', async () => {
+            const cachedData = JSON.stringify([
+                { playCount: 5, totalMs: '15000', name: 'Cached Song' }
+            ]);
+            (redis.get as jest.Mock).mockResolvedValue(cachedData);
+
+            const response = await app.inject({
+                method: 'GET',
+                url: '/me/stats/top/tracks?range=all',
+            });
+
+            expect(response.statusCode).toBe(200);
+            expect(prisma.userTrackStats.findMany).not.toHaveBeenCalled();
+        });
+
+        it('should handle different range parameter', async () => {
+            (redis.get as jest.Mock).mockResolvedValue(null);
+            (prisma.spotifyTopTrack.findMany as jest.Mock).mockResolvedValue([]);
+
+            const response = await app.inject({
+                method: 'GET',
+                url: '/me/stats/top/tracks?range=6months',
+            });
+
+            expect(response.statusCode).toBe(200);
+            expect(redis.setex).toHaveBeenCalledWith(
+                'stats:tracks:user-1:medium_term',
+                300,
+                expect.any(String)
+            );
+        });
+    });
+
+    describe('GET /me/stats/top/artists', () => {
+        it('should return top artists on cache miss', async () => {
+            (redis.get as jest.Mock).mockResolvedValue(null);
+            (prisma.spotifyTopArtist.findMany as jest.Mock).mockResolvedValue([
+                {
+                    rank: 1,
+                    artist: {
+                        spotifyId: 'artist-1',
+                        name: 'Top Artist',
+                        imageUrl: 'https://example.com/img.jpg'
+                    }
+                }
+            ]);
+
+            const response = await app.inject({
+                method: 'GET',
+                url: '/me/stats/top/artists?range=all',
+            });
+
+            expect(response.statusCode).toBe(200);
+            const body = response.json();
+            expect(body).toHaveLength(1);
+            expect(body[0].name).toBe('Top Artist');
+            expect(body[0].rank).toBe(1);
+        });
+
+        it('should return cached artists on cache hit', async () => {
+            const cachedData = JSON.stringify([
+                { playCount: 10, name: 'Cached Artist' }
+            ]);
+            (redis.get as jest.Mock).mockResolvedValue(cachedData);
+
+            const response = await app.inject({
+                method: 'GET',
+                url: '/me/stats/top/artists',
+            });
+
+            expect(response.statusCode).toBe(200);
+            expect(prisma.userArtistStats.findMany).not.toHaveBeenCalled();
+        });
+
+        it('should cache with correct key for range', async () => {
+            (redis.get as jest.Mock).mockResolvedValue(null);
+            (prisma.spotifyTopArtist.findMany as jest.Mock).mockResolvedValue([]);
+
+            await app.inject({
+                method: 'GET',
+                url: '/me/stats/top/artists?range=4weeks',
+            });
+
+            expect(redis.setex).toHaveBeenCalledWith(
+                'stats:artists:user-1:short_term',
+                300,
+                expect.any(String)
+            );
+        });
+    });
+
+    describe('GET /me/history', () => {
+        it('should return paginated history', async () => {
+            (prisma.listeningEvent.findMany as jest.Mock).mockResolvedValue([
+                {
+                    id: 'event-1',
+                    playedAt: new Date('2025-01-01T12:00:00Z'),
+                    track: { name: 'Recent Track', artists: [], album: null }
+                }
+            ]);
+            (prisma.listeningEvent.count as jest.Mock).mockResolvedValue(100);
+
+            const response = await app.inject({
+                method: 'GET',
+                url: '/me/history?page=1&limit=50',
+            });
+
+            expect(response.statusCode).toBe(200);
+            const body = response.json();
+            expect(body.events).toHaveLength(1);
+            expect(body.total).toBe(100);
+            // Query params come through as strings from the route
+            expect(Number(body.page)).toBe(1);
+            expect(Number(body.limit)).toBe(50);
+        });
+
+        it('should use default pagination values', async () => {
+            (prisma.listeningEvent.findMany as jest.Mock).mockResolvedValue([]);
+            (prisma.listeningEvent.count as jest.Mock).mockResolvedValue(0);
+
+            const response = await app.inject({
+                method: 'GET',
+                url: '/me/history',
+            });
+
+            expect(response.statusCode).toBe(200);
+            const body = response.json();
+            expect(Number(body.page)).toBe(1);
+            expect(Number(body.limit)).toBe(50);
+        });
+
+        it('should handle second page correctly', async () => {
+            (prisma.listeningEvent.findMany as jest.Mock).mockResolvedValue([]);
+            (prisma.listeningEvent.count as jest.Mock).mockResolvedValue(200);
+
+            await app.inject({
+                method: 'GET',
+                url: '/me/history?page=2&limit=25',
+            });
+
+            // Verify prisma was called with correct skip
+            expect(prisma.listeningEvent.findMany).toHaveBeenCalled();
+            const callArgs = (prisma.listeningEvent.findMany as jest.Mock).mock.calls[0][0];
+            expect(callArgs.skip).toBe(25);
         });
     });
 });
+

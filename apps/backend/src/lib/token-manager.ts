@@ -1,6 +1,7 @@
 import { prisma } from './prisma';
 import { decrypt, encrypt } from './encryption';
 import { refreshAccessToken, TokenRefreshError } from './spotify';
+import { logger } from './logger';
 
 // Access tokens expire in 1 hour; refresh proactively at 50 minutes
 const REFRESH_THRESHOLD_MS = 50 * 60 * 1000;
@@ -31,7 +32,7 @@ export async function getValidAccessToken(userId: string): Promise<TokenResult |
         return refreshed;
     }
 
-    // Get et a fresh one anyway since they aren't stored.
+    // Access tokens are not persisted, so always refresh to get a valid one
     const refreshed = await refreshUserToken(userId);
     return refreshed;
 }
@@ -71,12 +72,12 @@ export async function refreshUserToken(userId: string): Promise<TokenResult | nu
         if (error instanceof TokenRefreshError && error.isRevoked) {
             // Token was revoked by user
             await invalidateUserToken(userId);
-            console.error(`Token revoked for user ${userId}`);
+            logger.warn({ userId }, 'Token revoked by user');
             return null;
         }
 
         // Other errors - log but don't invalidate 
-        console.error(`Token refresh failed for user ${userId}:`, error);
+        logger.error({ userId, error }, 'Token refresh failed');
         throw error;
     }
 }

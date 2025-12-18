@@ -10,12 +10,14 @@ import type { ParsedListeningEvent, InsertResultWithIds } from '../types/ingesti
 import { Transform } from 'stream';
 
 const BATCH_SIZE = 100;
+const DB_UPDATE_INTERVAL = 1000; // Update DB every 1000 records
 const PROGRESS_KEY = (jobId: string) => `import_progress:${jobId}`;
 
 // Process streaming JSON file
 export async function processImportStream(
     userId: string,
     jobId: string,
+    fileName: string,
     fileStream: NodeJS.ReadableStream
 ): Promise<void> {
     let batch: ParsedImportEvent[] = [];
@@ -31,6 +33,22 @@ export async function processImportStream(
     });
     const userTimezone = user?.settings?.timezone ?? 'UTC';
 
+    // Create or update ImportJob record in DB
+    await prisma.importJob.upsert({
+        where: { id: jobId },
+        create: {
+            id: jobId,
+            userId,
+            fileName,
+            status: 'processing',
+            startedAt: new Date(),
+        },
+        update: {
+            status: 'processing',
+            startedAt: new Date(),
+        },
+    });
+
     // Update progress in Redis
     const updateProgress = async (status: ImportProgress['status'], error?: string) => {
         await redis.set(PROGRESS_KEY(jobId), JSON.stringify({
@@ -41,6 +59,17 @@ export async function processImportStream(
             skippedRecords,
             errorMessage: error,
         }), 'EX', 86400); // 24h TTL
+    };
+
+    // Update progress in DB periodically
+    const updateProgressDB = async () => {
+        await prisma.importJob.update({
+            where: { id: jobId },
+            data: {
+                totalEvents: totalRecords,
+                processedEvents: processedRecords,
+            },
+        });
     };
 
     await updateProgress('processing');
@@ -66,9 +95,14 @@ export async function processImportStream(
                 const results = await insertImportBatch(userId, batch, userTimezone);
                 addedRecords += results.added;
                 skippedRecords += results.skipped;
-                processedRecords += batch.length; // Count parsed as processed
+                processedRecords += batch.length;
                 batch = [];
                 await updateProgress('processing');
+
+                // Periodically update DB
+                if (processedRecords % DB_UPDATE_INTERVAL === 0) {
+                    await updateProgressDB();
+                }
             }
         }
 
@@ -80,12 +114,33 @@ export async function processImportStream(
             processedRecords += batch.length;
         }
 
-        const unparsedCount = totalRecords - (addedRecords + skippedRecords);
-
         await updateProgress('completed');
+
+        // Update DB with final status
+        await prisma.importJob.update({
+            where: { id: jobId },
+            data: {
+                status: 'completed',
+                totalEvents: totalRecords,
+                processedEvents: processedRecords,
+                completedAt: new Date(),
+            },
+        });
     } catch (error) {
         console.error('Import failed:', error);
-        await updateProgress('failed', error instanceof Error ? error.message : 'Unknown error');
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        await updateProgress('failed', errorMessage);
+
+        // Update DB with failure status
+        await prisma.importJob.update({
+            where: { id: jobId },
+            data: {
+                status: 'failed',
+                errorMessage,
+                completedAt: new Date(),
+            },
+        });
+
         throw error;
     }
 }
@@ -206,10 +261,31 @@ async function upsertImportTrack(event: ParsedImportEvent): Promise<string> {
     return created.id;
 }
 
-// Get import progress
+// Get import progress from Redis 
 export async function getImportProgress(
     jobId: string
 ): Promise<ImportProgress | null> {
     const data = await redis.get(PROGRESS_KEY(jobId));
     return data ? JSON.parse(data) : null;
+}
+
+// Get import progress from DB 
+export async function getImportProgressFromDB(
+    jobId: string,
+    userId: string
+): Promise<ImportProgress | null> {
+    const job = await prisma.importJob.findFirst({
+        where: { id: jobId, userId },
+    });
+
+    if (!job) return null;
+
+    return {
+        status: job.status as ImportProgress['status'],
+        totalRecords: job.totalEvents,
+        processedRecords: job.processedEvents,
+        addedRecords: job.processedEvents,
+        skippedRecords: 0,
+        errorMessage: job.errorMessage ?? undefined,
+    };
 }

@@ -1,4 +1,4 @@
-// Prisma CLI loads .env automatically; DATABASE_URL comes from environment on Railway
+import "dotenv/config";
 import { defineConfig } from "prisma/config";
 
 export default defineConfig({

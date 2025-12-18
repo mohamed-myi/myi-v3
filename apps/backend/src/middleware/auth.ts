@@ -23,7 +23,7 @@ export async function authMiddleware(
     request: FastifyRequest,
     reply: FastifyReply
 ): Promise<void> {
-    // Skip auth for public routes and cron routes (which have their own auth)
+    // Skip auth for public routes and cron routes
     const path = request.url.split('?')[0]; // Remove query params
     if (PUBLIC_ROUTES.some((route) => path === route || path.startsWith('/auth/') || path.startsWith('/cron/'))) {
         return;
