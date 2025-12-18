@@ -11,7 +11,7 @@ export default function ChartsPage() {
             <div className="px-6 space-y-6 animate-in fade-in duration-500">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-primary to-primary-light bg-clip-text text-transparent mb-2">
-                        Deep Dive Stats
+                        Deep Dive Stats - (Work in progress, please keep scrolling)
                     </h1>
                     <p className="text-zinc-400">Advanced analysis of your listening patterns.</p>
                 </div>

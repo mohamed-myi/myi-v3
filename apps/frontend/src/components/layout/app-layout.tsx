@@ -49,8 +49,8 @@ export function AppLayout({ children }: AppLayoutProps) {
                     scrolled ? "bg-black/80 backdrop-blur-md border-b border-white/5" : "bg-transparent"
                 )}
             >
-                <Link href="/dashboard" className="text-2xl font-bold tracking-tighter text-primary hover:text-primary-light transition-colors">
-                    MYI
+                <Link href="/dashboard" className="flex items-center justify-center w-12 h-12 rounded-full border-2 border-primary hover:border-primary-light transition-colors">
+                    <span className="text-xl font-bold tracking-tighter text-primary hover:text-primary-light transition-colors">MYI</span>
                 </Link>
 
                 <nav className="flex items-center gap-6 text-sm font-medium text-gray-400">
