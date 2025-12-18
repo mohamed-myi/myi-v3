@@ -39,9 +39,10 @@ jobs:
       - name: Run unit tests 
         run: npm run test:unit --workspace=backend
       
-      - name: Run integration tests (mocked)
+      - name: Run integration tests
         env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
-          DATABASE_URL: postgres://dummy:dummy@localhost:5432/dummy
         run: npm run test:integration --workspace=backend -- --testPathIgnorePatterns=ingestion

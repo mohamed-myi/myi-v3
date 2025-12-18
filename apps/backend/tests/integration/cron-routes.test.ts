@@ -29,6 +29,21 @@ jest.mock('../../src/workers/queues', () => ({
     },
 }));
 
+// Mock Prisma to avoid hitting real database
+jest.mock('../../src/lib/prisma', () => ({
+    prisma: {
+        spotifyAuth: {
+            findMany: jest.fn().mockResolvedValue([
+                { userId: 'test-user-1' },
+                { userId: 'test-user-2' },
+            ]),
+        },
+        user: {
+            findMany: jest.fn().mockResolvedValue([]),
+        },
+    },
+}));
+
 import Fastify, { FastifyInstance } from 'fastify';
 import { cronRoutes } from '../../src/routes/cron';
 
