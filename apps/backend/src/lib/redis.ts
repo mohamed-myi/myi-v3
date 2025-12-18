@@ -19,6 +19,15 @@ export const redis: Redis = new Proxy({} as Redis, {
         }
         return (_redis as any)[prop];
     },
+    set(_, prop, value) {
+        if (!_redis) {
+            _redis = new Redis(getRedisUrl(), {
+                maxRetriesPerRequest: null,
+            });
+        }
+        (_redis as any)[prop] = value;
+        return true;
+    },
 });
 
 const RATE_LIMIT_KEY = 'spotify:requests:minute';
