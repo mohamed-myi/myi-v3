@@ -94,8 +94,8 @@ export function useRecentHistory(limit: number = 50) {
         id: event.id,
         spotifyId: event.track.spotifyId,
         name: event.track.name,
-        artist: event.track.artists[0]?.artist.name || "Unknown",
-        artistSpotifyId: event.track.artists[0]?.artist.spotifyId,
+        artist: event.track.artists?.[0]?.artist?.name || "Unknown",
+        artistSpotifyId: event.track.artists?.[0]?.artist?.spotifyId,
         image: event.track.album?.imageUrl || "",
         playedAt: event.playedAt
     }));

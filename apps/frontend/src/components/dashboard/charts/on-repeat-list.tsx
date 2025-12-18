@@ -56,7 +56,7 @@ export function OnRepeatList() {
                                     {track.name}
                                 </p>
                                 <p className="text-sm text-zinc-500 truncate">
-                                    {track.artists?.map((a: { name: string }) => a.name).join(', ')}
+                                    {track.artists?.map((a: { name?: string }) => a?.name).filter(Boolean).join(', ') || 'Unknown Artist'}
                                 </p>
                             </div>
                             <div className="text-right">
