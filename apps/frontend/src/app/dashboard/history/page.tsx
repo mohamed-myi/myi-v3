@@ -30,7 +30,7 @@ const isSameDay = (d1: Date, d2: Date) => {
 };
 
 export default function HistoryPage() {
-    const { history, isLoading } = useRecentHistory(200);
+    const { history, isLoading, isError } = useRecentHistory(200);
     const [selectedItem, setSelectedItem] = useState<HistoryItem | null>(null);
 
     const groupedHistory = useMemo<Section[]>(() => {
@@ -69,7 +69,8 @@ export default function HistoryPage() {
             <div className="min-h-screen bg-background container mx-auto px-6 pt-8 pb-20 space-y-12">
                 <h1 className="text-4xl font-bold tracking-tight text-white mb-8">History</h1>
                 {isLoading && <p className="text-white">Loading history...</p>}
-                {!isLoading && groupedHistory.length === 0 && <p className="text-white">No history found.</p>}
+                {isError && <p className="text-red-400">Failed to load history. Please try again later.</p>}
+                {!isLoading && !isError && groupedHistory.length === 0 && <p className="text-white">No history found.</p>}
                 {!isLoading && groupedHistory.length > 0 && (
                     <div className="space-y-8">
                         {groupedHistory.map((section) => (
