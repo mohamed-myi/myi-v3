@@ -74,7 +74,7 @@ export default function DashboardPage() {
 
             <ItemModal
                 isOpen={!!selectedItem}
-                onClose={close}
+                onClose={() => setSelectedItem(null)}
                 item={selectedItem}
             />
         </AppLayout>
