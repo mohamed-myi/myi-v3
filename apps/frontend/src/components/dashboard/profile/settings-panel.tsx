@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Settings, Globe, Lock, Eye, Mail, Music, Users, Clock } from "lucide-react";
+import { Settings, Globe, Eye, Mail, Music, Users, Clock } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { useSettings, useUpdateSettings } from "@/hooks/use-profile";
 
@@ -43,26 +42,21 @@ function Toggle({ label, description, icon, checked, onChange }: ToggleProps) {
 export function SettingsPanel() {
     const { settings, isLoading, mutate } = useSettings();
     const { updateSettings } = useUpdateSettings();
-    const [localSettings, setLocalSettings] = useState(settings);
-
-    useEffect(() => {
-        if (settings) {
-            setLocalSettings(settings);
-        }
-    }, [settings]);
+    // Use settings directly when available, fallback to undefined
+    const localSettings = settings;
 
     const handleToggle = async (key: keyof typeof settings, value: boolean) => {
         if (!localSettings) return;
 
         const updated = { ...localSettings, [key]: value };
-        setLocalSettings(updated);
+        // Optimistic update
+        mutate(updated, false);
 
         try {
             await updateSettings({ [key]: value });
-            mutate(updated, false);
-        } catch (error) {
-            // Revert on error
-            setLocalSettings(localSettings);
+        } catch {
+            // Revert on error - refetch from server
+            mutate();
         }
     };
 
@@ -144,9 +138,9 @@ export function SettingsPanel() {
                             value={localSettings.timezone}
                             onChange={async (e) => {
                                 const tz = e.target.value;
-                                setLocalSettings({ ...localSettings, timezone: tz });
+                                const updated = { ...localSettings, timezone: tz };
+                                mutate(updated, false);
                                 await updateSettings({ timezone: tz });
-                                mutate({ ...localSettings, timezone: tz }, false);
                             }}
                             className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary"
                         >

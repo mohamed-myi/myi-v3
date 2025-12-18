@@ -56,7 +56,7 @@ describe('ItemModal', () => {
     })
 
     it('renders nothing when isOpen is false', () => {
-        const { container } = render(
+        render(
             <ItemModal isOpen={false} onClose={mockOnClose} item={mockItem} />
         )
 
