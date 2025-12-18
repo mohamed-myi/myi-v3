@@ -6,13 +6,27 @@ import { resolve } from 'path';
 
 config({ path: resolve(__dirname, '../../../../.env') });
 
-// Mock Redis
+// Mock Redis with getOrSet function
+const mockRedisGet = jest.fn();
+const mockRedisSetex = jest.fn();
+
 jest.mock('../../src/lib/redis', () => ({
     redis: {
-        get: jest.fn(),
-        setex: jest.fn(),
+        get: mockRedisGet,
+        setex: mockRedisSetex,
         quit: jest.fn(),
     },
+    getOrSet: jest.fn(async (key: string, ttl: number, fetcher: () => Promise<any>) => {
+        const cached = await mockRedisGet(key);
+        if (cached) {
+            return JSON.parse(cached);
+        }
+        const data = await fetcher();
+        if (data !== null && data !== undefined) {
+            await mockRedisSetex(key, ttl, JSON.stringify(data));
+        }
+        return data;
+    }),
     closeRedis: jest.fn(),
 }));
 
@@ -64,7 +78,6 @@ jest.mock('../../src/middleware/auth', () => ({
 
 import Fastify, { FastifyInstance } from 'fastify';
 import { statsRoutes } from '../../src/routes/stats';
-import { redis } from '../../src/lib/redis';
 import { authMiddleware } from '../../src/middleware/auth';
 
 describe('Stats Routes Integration', () => {
@@ -83,7 +96,7 @@ describe('Stats Routes Integration', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
-        (redis.get as jest.Mock).mockResolvedValue(null); // No cache by default
+        mockRedisGet.mockResolvedValue(null); // No cache by default
     });
 
     describe('GET /me/stats/overview', () => {
@@ -119,9 +132,13 @@ describe('Stats Routes Integration', () => {
         });
 
         it('returns cached data when available', async () => {
-            (redis.get as jest.Mock).mockResolvedValue(
-                JSON.stringify({ totalTracks: 5, cached: true })
-            );
+            const cachedData = {
+                totalPlayTimeMs: '123456',
+                totalTracks: 5,
+                topArtist: 'Cached Artist',
+                topArtistImage: null
+            };
+            mockRedisGet.mockResolvedValue(JSON.stringify(cachedData));
 
             const response = await app.inject({
                 method: 'GET',
@@ -130,7 +147,8 @@ describe('Stats Routes Integration', () => {
             });
 
             expect(response.statusCode).toBe(200);
-            expect(response.json().cached).toBe(true);
+            expect(response.json().totalTracks).toBe(5);
+            expect(response.json().topArtist).toBe('Cached Artist');
             expect(mockPrisma.userTrackStats.aggregate).not.toHaveBeenCalled();
         });
     });
