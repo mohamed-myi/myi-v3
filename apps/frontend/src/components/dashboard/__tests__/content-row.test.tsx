@@ -120,7 +120,7 @@ describe('ContentRow', () => {
                 />
             )
 
-            expect(screen.getByText('All-Time')).toBeInTheDocument()
+            expect(screen.getByText('All Time')).toBeInTheDocument()
         })
 
         it('hides time range when showTimeRange is false', () => {
@@ -133,7 +133,7 @@ describe('ContentRow', () => {
                 />
             )
 
-            expect(screen.queryByText('All-Time')).not.toBeInTheDocument()
+            expect(screen.queryByText('All Time')).not.toBeInTheDocument()
         })
 
         it('opens dropdown on click', () => {
@@ -148,10 +148,10 @@ describe('ContentRow', () => {
                 />
             )
 
-            fireEvent.click(screen.getByText('All-Time'))
+            fireEvent.click(screen.getByText('All Time'))
 
-            expect(screen.getByText('Last 7 Days')).toBeInTheDocument()
-            expect(screen.getByText('Last Month')).toBeInTheDocument()
+            expect(screen.getByText('Last 4 Weeks')).toBeInTheDocument()
+            expect(screen.getByText('Last 6 Months')).toBeInTheDocument()
         })
 
         it('changes selection and closes dropdown', () => {
@@ -169,11 +169,11 @@ describe('ContentRow', () => {
             )
 
             // Open dropdown
-            fireEvent.click(screen.getByText('All-Time'))
+            fireEvent.click(screen.getByText('All Time'))
             // Select new option
-            fireEvent.click(screen.getByText('Last 7 Days'))
+            fireEvent.click(screen.getByText('Last 4 Weeks'))
 
-            expect(mockOnRangeChange).toHaveBeenCalledWith('week')
+            expect(mockOnRangeChange).toHaveBeenCalledWith('4weeks')
         })
     })
 })

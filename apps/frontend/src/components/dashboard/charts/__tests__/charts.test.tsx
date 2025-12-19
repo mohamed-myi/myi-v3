@@ -77,7 +77,7 @@ describe('Charts Components', () => {
                         artists: [{ name: 'Test Artist' }],
                         totalMs: '60000', // 1 min
                         playCount: 5,
-                        album: { imageUrl: 'test.jpg' }
+                        album: { imageUrl: 'https://example.com/test.jpg', name: 'Test Album' }
                     }
                 ],
                 isLoading: false

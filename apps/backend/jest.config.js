@@ -14,7 +14,6 @@ module.exports = {
                 '^.+\\.tsx?$': [
                     'ts-jest',
                     {
-                        isolatedModules: true,
                         useESM: true,
                     },
                 ],
@@ -39,7 +38,6 @@ module.exports = {
                 '^.+\\.tsx?$': [
                     'ts-jest',
                     {
-                        isolatedModules: true,
                         useESM: true,
                     },
                 ],

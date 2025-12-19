@@ -45,7 +45,7 @@ export function SettingsPanel() {
     // Use settings directly when available, fallback to undefined
     const localSettings = settings;
 
-    const handleToggle = async (key: keyof typeof settings, value: boolean) => {
+    const handleToggle = async (key: keyof NonNullable<typeof settings>, value: boolean) => {
         if (!localSettings) return;
 
         const updated = { ...localSettings, [key]: value };
