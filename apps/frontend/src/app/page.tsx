@@ -30,31 +30,35 @@ export default function LandingPage() {
         initial={{ scale: 0.8, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ duration: 0.5 }}
-        className="text-center space-y-8 z-10"
+        className="text-center z-10 flex flex-col items-center"
       >
-        <h1 className="text-4xl md:text-5xl font-bold tracking-tight">Who&apos;s listening?</h1>
-
         {isLoading ? (
           <div className="flex flex-col items-center gap-4">
-            <Skeleton className="w-32 h-32 md:w-40 md:h-40 rounded-full" />
+            <Skeleton className="w-48 h-48 md:w-60 md:h-60 rounded-full" />
             <Skeleton className="w-32 h-6 rounded-md" />
           </div>
         ) : (
           <div className="flex flex-col items-center gap-4">
-            {/* Profile/Logo display - NOT clickable */}
+            {/* Profile/Logo display - NOT clickable, scaled to 150% */}
             <motion.div
-              className="w-32 h-32 md:w-40 md:h-40 rounded-full overflow-hidden border-2 border-primary shadow-2xl relative flex items-center justify-center"
+              className="w-48 h-48 md:w-60 md:h-60 rounded-full overflow-hidden shadow-2xl relative flex items-center justify-center"
             >
               {isAuthenticated && user?.image ? (
                 <Image src={user.image} alt={user.displayName || "User"} fill className="object-cover" unoptimized />
               ) : (
-                // MYI Logo - matching header style but larger
-                <span className="text-4xl md:text-5xl font-bold tracking-tighter text-primary">MYI</span>
+                // MYI Logo - brand mark from SVG
+                <img
+                  src="/brand/myi-logo.svg"
+                  alt="MYI"
+                  className="w-full h-full"
+                />
               )}
             </motion.div>
-            <span className="text-lg text-gray-400">
-              {isAuthenticated ? (user?.displayName || "User") : ""}
-            </span>
+            {isAuthenticated && (
+              <span className="text-lg text-gray-400">
+                {user?.displayName || "User"}
+              </span>
+            )}
           </div>
         )}
 
@@ -62,8 +66,13 @@ export default function LandingPage() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 1 }}
-          className="pt-12"
+          className="pt-12 flex flex-col items-center gap-3"
         >
+          {!isAuthenticated && (
+            <span className="text-sm tracking-widest uppercase text-gray-400">
+              Who&apos;s listening?
+            </span>
+          )}
           <button
             onClick={handleEnter}
             className="border border-white/20 hover:border-white px-6 py-2 rounded-sm text-sm tracking-widest uppercase transition-colors"

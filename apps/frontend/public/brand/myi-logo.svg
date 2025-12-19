@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <!-- Clip path for the circle boundary -->
+    <clipPath id="circleClip">
+      <circle cx="512" cy="512" r="410"/>
+    </clipPath>
+  </defs>
+  
+  <!-- Main purple circle -->
+  <circle 
+    cx="512" 
+    cy="512" 
+    r="410" 
+    fill="#7C3AED"
+  />
+  
+  <!-- Mark elements (cut out from circle) -->
+  <g clip-path="url(#circleClip)">
+    <!-- Primary Element: The I (Anchor) - centered vertical pill -->
+    <!-- Width: 96px, Height: 420px, Corner radius: 48px (fully rounded) -->
+    <!-- Centered at (512, 512) -->
+    <rect 
+      x="464"
+      y="302"
+      width="96" 
+      height="420" 
+      rx="48"
+      ry="48"
+      fill="#000000"
+    />
+    
+    <!-- Left angled pillar (M/Y suggestion) -->
+    <!-- Width: 64px, Height: 300px, Angle: -12°, Offset: -140px from center -->
+    <rect 
+      x="340"
+      y="362"
+      width="64" 
+      height="300" 
+      rx="32"
+      ry="32"
+      fill="#000000"
+      transform="rotate(-12, 372, 512)"
+    />
+    
+    <!-- Right angled pillar (M/Y suggestion) -->
+    <!-- Width: 64px, Height: 300px, Angle: +12°, Offset: +140px from center -->
+    <rect 
+      x="620"
+      y="362"
+      width="64" 
+      height="300" 
+      rx="32"
+      ry="32"
+      fill="#000000"
+      transform="rotate(12, 652, 512)"
+    />
+  </g>
+</svg>
