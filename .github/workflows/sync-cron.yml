@@ -18,9 +18,9 @@ jobs:
             https://backend-production-c4bf.up.railway.app/cron/seed-sync)
           
           if [ "$response" -eq 200 ]; then
-            echo "✅ Sync triggered successfully"
+            echo "Sync triggered successfully"
           else
-            echo "❌ Failed to trigger sync (HTTP $response)"
+            echo "Failed to trigger sync (HTTP $response)"
             exit 1
           fi
       
