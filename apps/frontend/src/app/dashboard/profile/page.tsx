@@ -6,22 +6,13 @@ import { ListeningStats } from "@/components/dashboard/profile/listening-stats";
 import { SettingsPanel } from "@/components/dashboard/profile/settings-panel";
 import { useProfile, useListeningStats } from "@/hooks/use-profile";
 import { LogOut } from "lucide-react";
-import { api } from "@/lib/api";
-import { useRouter } from "next/navigation";
+import { LogoutConfirmationDialog } from "@/components/ui/logout-confirmation-dialog";
+import * as React from "react";
 
 export default function ProfilePage() {
-    const router = useRouter();
     const { profile, isLoading: profileLoading, isError: profileError } = useProfile();
     const { stats, formattedTime, isLoading: statsLoading } = useListeningStats();
-
-    const handleLogout = async () => {
-        try {
-            await api.post("/auth/logout");
-            router.push("/");
-        } catch (error) {
-            console.error("Logout failed:", error);
-        }
-    };
+    const [isLogoutOpen, setIsLogoutOpen] = React.useState(false);
 
     if (profileLoading) {
         return (
@@ -82,13 +73,15 @@ export default function ProfilePage() {
                 {/* Account Actions */}
                 <div className="pt-6 border-t border-zinc-800">
                     <button
-                        onClick={handleLogout}
+                        onClick={() => setIsLogoutOpen(true)}
                         className="flex items-center gap-2 px-6 py-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-colors"
                     >
                         <LogOut className="w-5 h-5" />
                         <span>Sign Out</span>
                     </button>
                 </div>
+
+                <LogoutConfirmationDialog isOpen={isLogoutOpen} onClose={() => setIsLogoutOpen(false)} />
             </div>
         </AppLayout>
     );

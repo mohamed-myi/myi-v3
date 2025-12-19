@@ -36,7 +36,7 @@ interface HistoryResponse {
 }
 
 export function useUser() {
-    const { data, error, isLoading } = useSWR<UserProfile>("/auth/me", fetcher, {
+    const { data, error, isLoading, mutate } = useSWR<UserProfile>("/auth/me", fetcher, {
         shouldRetryOnError: false,
     });
 
@@ -45,6 +45,7 @@ export function useUser() {
         isLoading,
         isError: error,
         isAuthenticated: !!data,
+        mutate,
     };
 }
 

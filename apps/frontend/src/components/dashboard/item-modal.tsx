@@ -112,10 +112,10 @@ export function ItemModal({ isOpen, onClose, item }: ItemModalProps) {
                                 <div className="border-t border-white/10 pt-4">
                                     <h3 className="text-white font-bold mb-2">Your Stats</h3>
                                     <ul className="grid grid-cols-2 gap-y-2">
-                                        <li><span className="text-gray-500">Play Count:</span> <span className="text-white">1,245</span></li>
-                                        <li><span className="text-gray-500">Total Hours:</span> <span className="text-white">84.5 hrs</span></li>
-                                        <li><span className="text-gray-500">First Played:</span> <span className="text-white">Oct 12, 2021</span></li>
-                                        <li><span className="text-gray-500">Global Rank:</span> <span className="text-primary font-bold">#4</span></li>
+                                        <li><span className="text-gray-500">Play Count:</span> <span className="text-white">TBD</span></li>
+                                        <li><span className="text-gray-500">Total Hours:</span> <span className="text-white">TBD</span></li>
+                                        <li><span className="text-gray-500">First Played:</span> <span className="text-white">TBD</span></li>
+                                        <li><span className="text-gray-500">Global Rank:</span> <span className="text-primary font-bold">TBD</span></li>
                                     </ul>
                                 </div>
                             </div>
@@ -124,11 +124,11 @@ export function ItemModal({ isOpen, onClose, item }: ItemModalProps) {
                             <div className="space-y-2 text-xs">
                                 <div>
                                     <span className="text-gray-500">Genres:</span>
-                                    <span className="text-white block">Synthwave, Pop, R&B</span>
+                                    <span className="text-white block">TBD</span>
                                 </div>
                                 <div>
                                     <span className="text-gray-500">Vibe:</span>
-                                    <span className="text-white block">Nostalgic, Energetic</span>
+                                    <span className="text-white block">TBD</span>
                                 </div>
                             </div>
                         </div>

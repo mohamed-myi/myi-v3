@@ -179,7 +179,7 @@ export async function authRoutes(fastify: FastifyInstance) {
             fastify.log.info(`User ${user.id} logged in, triggering initial sync`);
             await syncUserQueue.add(`sync-${user.id}`, { userId: user.id });
 
-            return reply.redirect(FRONTEND_URL);
+            return reply.redirect(`${FRONTEND_URL}/dashboard`);
         } catch (err) {
             fastify.log.error(err, 'OAuth callback error');
             return reply.redirect(`${FRONTEND_URL}?error=auth_failed`);

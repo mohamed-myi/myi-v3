@@ -13,8 +13,8 @@ test.describe('Landing Page', () => {
 
     test('should verify login redirect URL', async ({ page }) => {
         await page.goto('/');
-        const loginButton = page.getByRole('button', { name: /Connect Account|Enter Dashboard/i });
+        const loginButton = page.getByRole('button', { name: /Login with Spotify|Enter Dashboard/i });
 
-        await expect(loginButton).toHaveText('Connect Account');
+        await expect(loginButton).toHaveText('Login with Spotify');
     });
 });

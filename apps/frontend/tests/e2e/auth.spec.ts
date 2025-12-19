@@ -29,7 +29,7 @@ test.describe('Authentication Flows', () => {
 
         await page.goto('/')
 
-        await expect(page.getByRole('button', { name: /Connect Account/i })).toBeVisible()
+        await expect(page.getByRole('button', { name: /Login with Spotify/i })).toBeVisible()
     })
 
     test('logout button calls API and redirects to landing', async ({ page }) => {

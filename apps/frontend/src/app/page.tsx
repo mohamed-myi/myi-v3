@@ -20,9 +20,11 @@ export default function LandingPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-background text-white p-4">
-      {/* Background Grid Effect */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:14px_24px] pointer-events-none" />
+    <div className="min-h-screen flex flex-col items-center justify-center bg-black text-white p-4">
+      {/* Background Grid Effect - only for authenticated users */}
+      {isAuthenticated && (
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:14px_24px] pointer-events-none" />
+      )}
 
       <motion.div
         initial={{ scale: 0.8, opacity: 0 }}
@@ -34,23 +36,24 @@ export default function LandingPage() {
 
         {isLoading ? (
           <div className="flex flex-col items-center gap-4">
-            <Skeleton className="w-32 h-32 md:w-40 md:h-40 rounded-md" />
+            <Skeleton className="w-32 h-32 md:w-40 md:h-40 rounded-full" />
             <Skeleton className="w-32 h-6 rounded-md" />
           </div>
         ) : (
-          <div className="flex flex-col items-center gap-4 group cursor-pointer" onClick={handleEnter}>
+          <div className="flex flex-col items-center gap-4">
+            {/* Profile/Logo display - NOT clickable */}
             <motion.div
-              whileHover={{ scale: 1.05, borderColor: "#A855F7" }}
-              className="w-32 h-32 md:w-40 md:h-40 rounded-md overflow-hidden border-2 border-transparent transition-all shadow-2xl relative"
+              className="w-32 h-32 md:w-40 md:h-40 rounded-full overflow-hidden border-2 border-primary shadow-2xl relative flex items-center justify-center"
             >
               {isAuthenticated && user?.image ? (
                 <Image src={user.image} alt={user.displayName || "User"} fill className="object-cover" unoptimized />
               ) : (
-                <div className="w-full h-full bg-surface flex items-center justify-center text-4xl text-gray-500">?</div>
+                // MYI Logo - matching header style but larger
+                <span className="text-4xl md:text-5xl font-bold tracking-tighter text-primary">MYI</span>
               )}
             </motion.div>
-            <span className="text-lg text-gray-400 group-hover:text-white transition-colors">
-              {isAuthenticated ? (user?.displayName || "User") : "Login with Spotify"}
+            <span className="text-lg text-gray-400">
+              {isAuthenticated ? (user?.displayName || "User") : ""}
             </span>
           </div>
         )}
@@ -65,7 +68,7 @@ export default function LandingPage() {
             onClick={handleEnter}
             className="border border-white/20 hover:border-white px-6 py-2 rounded-sm text-sm tracking-widest uppercase transition-colors"
           >
-            {isAuthenticated ? "Enter Dashboard" : "Connect Account"}
+            {isAuthenticated ? "Enter Dashboard" : "Login with Spotify"}
           </button>
         </motion.div>
       </motion.div>

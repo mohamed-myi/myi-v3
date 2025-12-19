@@ -9,6 +9,7 @@ import { api } from "@/lib/api";
 import { LogOut, Upload } from "lucide-react";
 import { useUser } from "@/hooks/use-dashboard";
 import { ImportHistoryModal } from "@/components/ImportHistoryModal";
+import { LogoutConfirmationDialog } from "@/components/ui/logout-confirmation-dialog";
 
 interface AppLayoutProps {
     children: React.ReactNode;
@@ -20,16 +21,9 @@ export function AppLayout({ children }: AppLayoutProps) {
     const router = useRouter();
     const { user } = useUser();
     const [isImportOpen, setIsImportOpen] = React.useState(false);
+    const [isLogoutOpen, setIsLogoutOpen] = React.useState(false);
 
 
-    const handleLogout = async () => {
-        try {
-            await api.post("/auth/logout");
-            router.push("/");
-        } catch (err) {
-            console.error("Logout failed", err);
-        }
-    };
 
     // Handle scroll effect for navbar
     React.useEffect(() => {
@@ -79,7 +73,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                         Profile
                     </Link>
                     <button
-                        onClick={handleLogout}
+                        onClick={() => setIsLogoutOpen(true)}
                         className="text-gray-400 hover:text-white transition-colors flex items-center gap-2"
                         title="Logout"
                     >
@@ -126,6 +120,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             </footer>
 
             <ImportHistoryModal isOpen={isImportOpen} onClose={() => setIsImportOpen(false)} />
+            <LogoutConfirmationDialog isOpen={isLogoutOpen} onClose={() => setIsLogoutOpen(false)} />
         </div>
     );
 }
