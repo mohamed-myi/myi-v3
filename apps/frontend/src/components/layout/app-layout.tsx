@@ -66,12 +66,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                     >
                         Stats
                     </Link>
-                    <Link
-                        href="/dashboard/profile"
-                        className={cn("hover:text-white transition-colors", pathname === "/dashboard/profile" && "text-white")}
-                    >
-                        Profile
-                    </Link>
+
                     <button
                         onClick={() => setIsLogoutOpen(true)}
                         className="text-gray-400 hover:text-white transition-colors flex items-center gap-2"
@@ -89,7 +84,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                     </button>
 
                     {user && (
-                        <Link href={`/users/${user.id}`} title="My Profile">
+                        <Link href="/dashboard/profile" title="My Profile">
                             <div className="w-8 h-8 rounded-full bg-surface border border-white/10 flex items-center justify-center overflow-hidden hover:border-primary transition-colors relative">
                                 {user.image ? (
                                     <Image src={user.image} alt={user.displayName} fill className="object-cover" unoptimized />
