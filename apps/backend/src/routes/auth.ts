@@ -177,7 +177,7 @@ export async function authRoutes(fastify: FastifyInstance) {
 
             // Trigger first poll of recent tracks
             fastify.log.info(`User ${user.id} logged in, triggering initial sync`);
-            await syncUserQueue.add(`sync-${user.id}`, { userId: user.id }, { jobId: user.id });
+            await syncUserQueue.add(`sync-${user.id}`, { userId: user.id });
 
             return reply.redirect(FRONTEND_URL);
         } catch (err) {

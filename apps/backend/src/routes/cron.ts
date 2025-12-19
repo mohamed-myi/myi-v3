@@ -33,11 +33,11 @@ export async function cronRoutes(fastify: FastifyInstance): Promise<void> {
 
         const allUsers = [...activeUsers, ...newUsers];
 
-        // Add jobs to queue (using userId as jobId prevents duplicates)
+        // Add jobs to queue - each cron run creates new jobs
+        // The sync worker has its own 5-minute cooldown to prevent over-syncing
         const jobs = allUsers.map((user) => ({
             name: `sync-${user.id}`,
             data: { userId: user.id },
-            opts: { jobId: user.id },
         }));
 
         await syncUserQueue.addBulk(jobs);
