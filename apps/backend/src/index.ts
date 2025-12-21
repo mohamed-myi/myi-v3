@@ -86,6 +86,7 @@ export const build = async () => {
 import { audioFeaturesWorker } from './workers/audio-features-worker';
 import { metadataWorker } from './workers/metadata-worker';
 import { topStatsWorker, closeTopStatsWorker } from './workers/top-stats-worker';
+import { HealingService } from './services/healing';
 
 // Start server if main module
 if (require.main === module) {
@@ -101,6 +102,9 @@ if (require.main === module) {
       // In a real production setup, these would likely be processes/containers but I am running a free option.
       audioFeaturesWorker().catch(err => logger.error({ error: err }, 'Audio Features Worker failed'));
       metadataWorker().catch(err => logger.error({ error: err }, 'Metadata Worker failed'));
+
+      // Self-Healing
+      HealingService.healAll().catch(err => logger.error({ error: err }, 'Healing Service failed'));
 
       const shutdown = async () => {
         logger.info('Shutting down gracefully...');
