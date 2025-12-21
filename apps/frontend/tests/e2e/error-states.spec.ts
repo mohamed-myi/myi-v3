@@ -16,8 +16,8 @@ test.describe('Error Handling', () => {
         await page.goto('/dashboard')
 
         // App should not crash; navigation should still work
-        await expect(page.getByText('MYI')).toBeVisible()
-        await expect(page.getByText('Browse')).toBeVisible()
+        await expect(page.getByAltText('MYI')).toBeVisible()
+        await expect(page.getByRole('link', { name: 'Browse' })).toBeVisible()
     })
 
     test('empty data displays loading message in hero', async ({ page }) => {
@@ -48,7 +48,7 @@ test.describe('Error Handling', () => {
 
         await page.goto('/dashboard')
 
-        // Main graphic shows "Loading..." as fallback when no top artist
+        // Fallback when no top artist
         await expect(page.getByText('Loading...')).toBeVisible()
     })
 })

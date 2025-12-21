@@ -1,7 +1,6 @@
 "use client";
 
 import { AppLayout } from "@/components/layout/app-layout";
-import { Card } from "@/components/ui/card";
 import { useRecentHistory } from "@/hooks/use-dashboard";
 import { useState, useMemo } from "react";
 import { ItemModal } from "@/components/dashboard/item-modal";
@@ -66,41 +65,103 @@ export default function HistoryPage() {
 
     return (
         <AppLayout>
-            <div className="min-h-screen bg-background container mx-auto px-6 pt-8 pb-20 space-y-12">
-                <h1 className="text-4xl font-bold tracking-tight text-primary mb-8">History</h1>
-                {isLoading && <p className="text-white">Loading history...</p>}
-                {isError && <p className="text-red-400">Failed to load history. Please try again later.</p>}
-                {!isLoading && !isError && groupedHistory.length === 0 && <p className="text-white">No history found.</p>}
-                {!isLoading && groupedHistory.length > 0 && (
-                    <div className="space-y-8">
-                        {groupedHistory.map((section) => (
-                            <section key={section.title} className="space-y-4">
-                                <h2 className="text-2xl font-semibold text-primary">{section.title}</h2>
-                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                                    {section.items.map((item) => (
-                                        <div
-                                            key={item.id}
-                                            className="space-y-3 group cursor-pointer"
-                                            onClick={() => setSelectedItem(item)}
-                                        >
-                                            <Card variant="square" className="border border-white/5 group-hover:border-primary/50 transition-colors">
-                                                {item.image ? (
-                                                    <Image src={item.image} alt={item.name} fill className="object-cover" unoptimized />
-                                                ) : (
-                                                    <div className="w-full h-full bg-gray-800" />
-                                                )}
-                                            </Card>
-                                            <div>
-                                                <p className="font-medium text-white truncate group-hover:text-primary transition-colors">{item.name}</p>
-                                                <p className="text-sm text-gray-400 truncate">{item.artist}</p>
-                                            </div>
-                                        </div>
-                                    ))}
+            <div className="min-h-screen">
+                <div className="w-[95%] max-w-[1920px] mx-auto px-4 md:px-6 py-8 md:py-16">
+                    {/* Page Title - Large purple accent */}
+                    <h1 className="text-5xl md:text-6xl tracking-tight text-purple-300 font-bold mb-8">
+                        History
+                    </h1>
+
+                    {/* Loading State */}
+                    {isLoading && (
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                            {Array.from({ length: 12 }).map((_, i) => (
+                                <div key={i} className="backdrop-blur-md bg-white/5 border border-white/10 rounded-lg p-4 animate-pulse">
+                                    <div className="aspect-square rounded-md bg-white/10 mb-4" />
+                                    <div className="h-4 bg-white/10 rounded mb-2" />
+                                    <div className="h-3 bg-white/5 rounded w-2/3" />
                                 </div>
-                            </section>
-                        ))}
-                    </div>
-                )}
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Error State */}
+                    {isError && (
+                        <div className="backdrop-blur-md bg-red-500/10 border border-red-400/30 rounded-xl p-6 text-center">
+                            <p className="text-red-300">Failed to load history. Please try again later.</p>
+                        </div>
+                    )}
+
+                    {/* Empty State */}
+                    {!isLoading && !isError && groupedHistory.length === 0 && (
+                        <div className="backdrop-blur-md bg-white/5 border border-white/10 rounded-xl p-12 text-center">
+                            <p className="text-white/60">No listening history found.</p>
+                        </div>
+                    )}
+
+                    {/* History Sections */}
+                    {!isLoading && groupedHistory.length > 0 && (
+                        <div className="space-y-12">
+                            {groupedHistory.map((section) => (
+                                <section key={section.title}>
+                                    {/* Section Header - Purple accent */}
+                                    <h2 className="text-purple-200 text-xl font-medium mb-6">
+                                        {section.title}
+                                    </h2>
+
+                                    {/* Cards Grid - 6 columns on desktop */}
+                                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                                        {section.items.map((item) => (
+                                            <div
+                                                key={item.id}
+                                                className="group cursor-pointer"
+                                                onClick={() => setSelectedItem(item)}
+                                            >
+                                                {/* Glassmorphic Card */}
+                                                <div className="backdrop-blur-md bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg p-4 transition-all duration-300 hover:scale-105 shadow-xl">
+                                                    {/* Album Art */}
+                                                    <div className="relative mb-4">
+                                                        <div className="aspect-square rounded-md overflow-hidden bg-white/5">
+                                                            {item.image ? (
+                                                                <Image
+                                                                    src={item.image}
+                                                                    alt={item.name}
+                                                                    fill
+                                                                    className="object-cover"
+                                                                    unoptimized
+                                                                />
+                                                            ) : (
+                                                                <div className="w-full h-full bg-white/10" />
+                                                            )}
+                                                        </div>
+                                                        {/* Explicit Badge (simulated for some tracks) */}
+                                                        {item.name.length % 4 === 0 && (
+                                                            <div className="absolute top-2 right-2">
+                                                                <span className="px-1.5 py-0.5 rounded backdrop-blur-md bg-black/60 border border-white/20 text-[10px] font-medium">
+                                                                    E
+                                                                </span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Track Info */}
+                                                    <div>
+                                                        <p className="text-sm truncate mb-1 text-white group-hover:text-purple-300 transition-colors">
+                                                            {item.name}
+                                                        </p>
+                                                        <p className="text-xs text-white/50 truncate">
+                                                            {item.artist}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </section>
+                            ))}
+                        </div>
+                    )}
+                </div>
             </div>
 
             <ItemModal
@@ -108,6 +169,6 @@ export default function HistoryPage() {
                 onClose={() => setSelectedItem(null)}
                 item={selectedItem}
             />
-        </AppLayout >
+        </AppLayout>
     );
 }

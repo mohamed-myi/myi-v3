@@ -1,29 +1,137 @@
 @import "tailwindcss";
 
 @theme {
-  --color-background: #050505;
-  --color-surface: #121212;
+  /* Core Colors - Glassmorphic Dark Theme */
+  --color-background: #000000;
+  --color-surface: #0a0a0a;
   --color-primary: #A855F7;
   --color-primary-dark: #7C3AED;
   --color-primary-light: #C084FC;
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 
+  /* Purple Accent Gradient */
   --image-purple-gradient: linear-gradient(to right, #7C3AED, #A855F7);
+
+  /* Typography */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 }
 
 :root {
-  --background: #050505;
+  --background: #000000;
   --foreground: #ededed;
+
+  /* Glassmorphic Variables */
+  --glass-bg: rgba(255, 255, 255, 0.05);
+  --glass-bg-hover: rgba(255, 255, 255, 0.1);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-border-hover: rgba(255, 255, 255, 0.2);
+
+  /* Text Opacities */
+  --text-primary: rgba(255, 255, 255, 0.9);
+  --text-secondary: rgba(255, 255, 255, 0.6);
+  --text-muted: rgba(255, 255, 255, 0.5);
+
+  /* Purple Accent Colors */
+  --purple-glow: rgba(168, 85, 247, 0.3);
+  --purple-badge-bg: rgba(168, 85, 247, 0.2);
+  --purple-badge-border: rgba(192, 132, 252, 0.3);
 }
 
 body {
   background-color: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
   }
+
+  /* Glassmorphic Utilities */
+  .glass {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    background-color: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+  }
+
+  .glass-hover:hover {
+    background-color: var(--glass-bg-hover);
+    border-color: var(--glass-border-hover);
+  }
+
+  .glass-strong {
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    background: linear-gradient(to bottom, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+    border: 1px solid var(--glass-border-hover);
+  }
+
+  /* Hide Scrollbar */
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Purple Glow Effect */
+  .purple-glow {
+    box-shadow: 0 0 20px var(--purple-glow);
+  }
+
+  /* Gradient Text */
+  .gradient-text {
+    background: linear-gradient(to right, #A855F7, #C084FC);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+}
+
+/* Animation for fade in */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+  }
+
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideOutRight {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(100%);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out;
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.3s ease-out;
+}
+
+.animate-slide-out-right {
+  animation: slideOutRight 0.3s ease-out;
 }

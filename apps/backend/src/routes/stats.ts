@@ -491,6 +491,119 @@ export async function statsRoutes(fastify: FastifyInstance) {
         return response;
     });
 
+    // GET /me/stats/song-of-the-day: Most played track in last 24 hours
+    fastify.get('/me/stats/song-of-the-day', {
+        schema: {
+            description: 'Get the most played track in the last 24 hours (Song of the Day)',
+            tags: ['Stats'],
+            response: {
+                200: {
+                    type: 'object',
+                    properties: {
+                        id: { type: 'string' },
+                        spotifyId: { type: 'string' },
+                        name: { type: 'string' },
+                        artist: { type: 'string' },
+                        artistSpotifyId: { type: 'string' },
+                        image: { type: 'string', nullable: true },
+                        playCount: { type: 'number' },
+                        isFallback: { type: 'boolean' }
+                    }
+                },
+                401: { type: 'object', properties: { error: { type: 'string' } } }
+            }
+        }
+    }, async (request, reply) => {
+        const userId = request.userId;
+        if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+
+        const cacheKey = `stats:song-of-day:${userId}`;
+        const response = await getOrSet(cacheKey, CACHE_TTL, async () => {
+            const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+            // Group listening events by track in last 24h
+            const recentPlays = await prisma.listeningEvent.groupBy({
+                by: ['trackId'],
+                where: {
+                    userId,
+                    playedAt: { gte: twentyFourHoursAgo }
+                },
+                _count: { trackId: true },
+                orderBy: { _count: { trackId: 'desc' } },
+                take: 1
+            });
+
+            let trackId: string | null = recentPlays[0]?.trackId || null;
+            let playCount = recentPlays[0]?._count?.trackId || 0;
+            let isFallback = false;
+
+            // Fallback: get all-time most played track
+            if (!trackId) {
+                const allTimeMostPlayed = await prisma.userTrackStats.findFirst({
+                    where: { userId },
+                    orderBy: { playCount: 'desc' },
+                    select: { trackId: true, playCount: true }
+                });
+                trackId = allTimeMostPlayed?.trackId || null;
+                playCount = allTimeMostPlayed?.playCount || 0;
+                isFallback = true;
+            }
+
+            if (!trackId) {
+                return toJSON({
+                    id: null,
+                    spotifyId: null,
+                    name: 'No tracks played yet',
+                    artist: 'Play some music!',
+                    artistSpotifyId: null,
+                    image: null,
+                    playCount: 0,
+                    isFallback: true
+                });
+            }
+
+            // Fetch track details
+            const track = await prisma.track.findUnique({
+                where: { id: trackId },
+                include: {
+                    album: true,
+                    artists: {
+                        include: { artist: true },
+                        take: 1
+                    }
+                }
+            });
+
+            if (!track) {
+                return toJSON({
+                    id: null,
+                    spotifyId: null,
+                    name: 'Track not found',
+                    artist: 'Unknown',
+                    artistSpotifyId: null,
+                    image: null,
+                    playCount: 0,
+                    isFallback: true
+                });
+            }
+
+            const primaryArtist = track.artists[0]?.artist;
+
+            return toJSON({
+                id: track.id,
+                spotifyId: track.spotifyId,
+                name: track.name,
+                artist: primaryArtist?.name || 'Unknown Artist',
+                artistSpotifyId: primaryArtist?.spotifyId || null,
+                image: track.album?.imageUrl || null,
+                playCount,
+                isFallback
+            });
+        });
+
+        return response;
+    });
+
     // GET /me/history
     fastify.get<{ Querystring: { page?: number; limit?: number } }>('/me/history', {
         schema: {

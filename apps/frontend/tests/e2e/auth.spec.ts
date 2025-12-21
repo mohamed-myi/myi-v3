@@ -65,7 +65,10 @@ test.describe('Authentication Flows', () => {
         // Click logout button
         await page.getByTitle('Logout').click()
 
+        // Click Sign Out in confirmation dialog
+        await page.getByRole('button', { name: 'Sign Out' }).click()
+
         // Should redirect to landing page
-        await expect(page).toHaveURL('/')
+        await expect(page).toHaveURL('/', { timeout: 10000 })
     })
 })

@@ -42,8 +42,8 @@ test.describe('Dashboard Access', () => {
         await page.goto('/dashboard');
 
         await expect(page).toHaveURL(/\/dashboard/);
-        await expect(page.getByText('MYI')).toBeVisible();
-        await expect(page.getByText('Browse')).toBeVisible();
+        await expect(page.getByAltText('MYI')).toBeVisible();
+        await expect(page.getByRole('link', { name: 'Browse' })).toBeVisible();
     });
 
     test('should allow navigation between tabs', async ({ page }) => {
@@ -51,10 +51,10 @@ test.describe('Dashboard Access', () => {
 
         await page.goto('/dashboard');
 
-        await page.getByText('History').click();
+        await page.getByRole('link', { name: 'History' }).click();
         await expect(page).toHaveURL(/\/dashboard\/history/);
 
-        await page.getByText('Browse').click();
+        await page.getByRole('link', { name: 'Browse' }).click();
         await expect(page).toHaveURL(/\/dashboard/);
     });
 });
@@ -71,10 +71,10 @@ test.describe('Dashboard - Data Loading', () => {
         await expect(page.getByText('Pink Floyd')).toBeVisible()
     })
 
-    test('displays #1 All-Time Artist subtitle', async ({ page }) => {
+    test('displays #1 Artist subtitle', async ({ page }) => {
         await page.goto('/dashboard')
 
-        await expect(page.getByText('#1 All-Time Artist')).toBeVisible()
+        await expect(page.getByText('#1 Artist')).toBeVisible()
     })
 
     test('displays Top Artists content row', async ({ page }) => {
@@ -104,18 +104,18 @@ test.describe('Dashboard - Time Range Filter', () => {
     test('time range dropdown is visible', async ({ page }) => {
         await page.goto('/dashboard')
 
-        // Look for "All-Time" which is the default
-        await expect(page.getByText('All-Time').first()).toBeVisible()
+        // Look for "Last 1 Year" which is the default
+        await expect(page.getByText('Last 1 Year').first()).toBeVisible()
     })
 
     test('clicking time range opens dropdown', async ({ page }) => {
         await page.goto('/dashboard')
 
-        await page.getByText('All-Time').first().click()
+        await page.getByText('Last 1 Year').first().click()
 
         // Options should be visible
-        await expect(page.getByText('Last 4 Weeks')).toBeVisible()
-        await expect(page.getByText('Last 6 Months')).toBeVisible()
+        await expect(page.getByText('Last 4 Weeks').first()).toBeVisible()
+        await expect(page.getByText('Last 6 Months').first()).toBeVisible()
     })
 })
 

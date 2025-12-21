@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Play } from "lucide-react";
+import { X, Play, ExternalLink } from "lucide-react";
 import { useEffect } from "react";
 import Image from "next/image";
 
@@ -39,96 +39,101 @@ export function ItemModal({ isOpen, onClose, item }: ItemModalProps) {
         <AnimatePresence>
             {isOpen && (
                 <>
-                    {/* Backdrop */}
+                    {/* Backdrop - Glassmorphic */}
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         onClick={onClose}
-                        className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm"
+                        className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-md"
                     />
 
-                    {/* Modal Content */}
+                    {/* Modal Content - Glassmorphic */}
                     <motion.div
-                        layoutId={`card-${item.id}`}
-                        initial={{ opacity: 0, scale: 0.9, y: 50 }}
+                        initial={{ opacity: 0, scale: 0.95, y: 20 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.9, y: 50 }}
+                        exit={{ opacity: 0, scale: 0.95, y: 20 }}
                         transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                        className="fixed inset-0 z-[70] m-auto h-fit max-h-[90vh] w-[90vw] max-w-4xl overflow-hidden rounded-xl bg-[#181818] shadow-2xl md:top-10"
+                        className="fixed inset-0 z-[70] flex items-center justify-center p-4"
                     >
-                        {/* Close Button */}
-                        <button
-                            onClick={onClose}
-                            className="absolute right-4 top-4 z-20 rounded-full bg-black/50 p-2 text-white hover:bg-black/70 transition-colors"
+                        <div
+                            className="w-full max-w-lg backdrop-blur-2xl bg-gradient-to-b from-white/10 to-white/5 border border-white/20 rounded-2xl overflow-hidden shadow-2xl"
+                            onClick={(e) => e.stopPropagation()}
                         >
-                            <X className="h-6 w-6" />
-                        </button>
+                            {/* Header Image Section */}
+                            <div className="relative aspect-square">
+                                <Image
+                                    src={item.image || '/placeholder.png'}
+                                    alt={item.name}
+                                    fill
+                                    className="object-cover"
+                                    unoptimized
+                                />
+                                {/* Gradient Overlay */}
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
 
-                        {/* Hero Image Area */}
-                        <div className="relative aspect-video w-full">
-                            <div className="absolute inset-0 bg-gradient-to-t from-[#181818] via-transparent to-transparent z-10" />
-                            <Image
-                                src={item.image || '/placeholder.png'}
-                                alt={item.name}
-                                fill
-                                className="object-cover"
-                                unoptimized
-                            />
+                                {/* Close Button */}
+                                <button
+                                    onClick={onClose}
+                                    className="absolute top-4 right-4 w-10 h-10 rounded-full backdrop-blur-xl bg-black/40 hover:bg-black/60 border border-white/20 flex items-center justify-center transition-all"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
 
-                            <div className="absolute bottom-8 left-8 z-20 space-y-4">
-                                <h2 className="text-4xl md:text-5xl font-bold text-white drop-shadow-md">{item.name}</h2>
-                                {item.artist && (
-                                    <p className="text-2xl text-gray-200 font-medium drop-shadow-md">{item.artist}</p>
-                                )}
+                                {/* Title and Artist on Image */}
+                                <div className="absolute bottom-6 left-6 right-6">
+                                    <h3 className="text-3xl font-bold text-white mb-2">{item.name}</h3>
+                                    {item.artist && (
+                                        <p className="text-white/80 text-lg">{item.artist}</p>
+                                    )}
+                                </div>
                             </div>
-                        </div>
 
-                        {/* Details Grid */}
-                        <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr] gap-8 p-8 text-sm text-gray-300">
-                            {/* Left Column: Stats & Desc */}
-                            <div className="space-y-6">
-                                <div className="flex flex-col sm:flex-row gap-4">
-                                    {!(!item.artist) && item.spotifyId && (
+                            {/* Content Section */}
+                            <div className="p-6">
+                                {/* Action Buttons */}
+                                <div className="flex gap-3">
+                                    {item.artist && item.spotifyId && (
                                         <button
                                             onClick={() => window.open(`https://open.spotify.com/track/${item.spotifyId}`, '_blank')}
-                                            className="px-6 py-3 rounded-md font-bold text-white bg-black border border-purple-500 hover:bg-purple-900/20 transition-colors flex items-center justify-center gap-2"
+                                            className="flex-1 px-4 py-3 rounded-xl backdrop-blur-md bg-white/10 hover:bg-white/20 border border-white/20 transition-all flex items-center justify-center gap-2 text-sm font-medium"
                                         >
-                                            <Play className="w-4 h-4 fill-current" />
-                                            View Song in Spotify
+                                            <Play className="w-4 h-4" />
+                                            View Song
                                         </button>
                                     )}
-
                                     {(item.artistSpotifyId || (!item.artist && item.spotifyId)) && (
                                         <button
                                             onClick={() => window.open(`https://open.spotify.com/artist/${!item.artist ? item.spotifyId : item.artistSpotifyId}`, '_blank')}
-                                            className="px-6 py-3 rounded-md font-bold text-white bg-purple-600 hover:bg-purple-700 transition-colors flex items-center justify-center gap-2"
+                                            className="flex-1 px-4 py-3 rounded-xl bg-purple-600 hover:bg-purple-700 transition-all flex items-center justify-center gap-2 text-sm font-medium"
                                         >
-                                            View Artist in Spotify
+                                            <ExternalLink className="w-4 h-4" />
+                                            View Artist
                                         </button>
                                     )}
                                 </div>
 
-                                <div className="border-t border-white/10 pt-4">
-                                    <h3 className="text-white font-bold mb-2">Your Stats</h3>
-                                    <ul className="grid grid-cols-2 gap-y-2">
-                                        <li><span className="text-gray-500">Play Count:</span> <span className="text-white">TBD</span></li>
-                                        <li><span className="text-gray-500">Total Hours:</span> <span className="text-white">TBD</span></li>
-                                        <li><span className="text-gray-500">First Played:</span> <span className="text-white">TBD</span></li>
-                                        <li><span className="text-gray-500">Global Rank:</span> <span className="text-primary font-bold">TBD</span></li>
-                                    </ul>
-                                </div>
-                            </div>
-
-                            {/* Right Column: Metadata */}
-                            <div className="space-y-2 text-xs">
-                                <div>
-                                    <span className="text-gray-500">Genres:</span>
-                                    <span className="text-white block">TBD</span>
-                                </div>
-                                <div>
-                                    <span className="text-gray-500">Vibe:</span>
-                                    <span className="text-white block">TBD</span>
+                                {/* Stats Section */}
+                                <div className="mt-6 pt-6 border-t border-white/10">
+                                    <h4 className="text-white font-semibold mb-4">Your Stats</h4>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="backdrop-blur-md bg-white/5 rounded-lg p-3 border border-white/10">
+                                            <p className="text-white/50 text-xs mb-1">Play Count</p>
+                                            <p className="text-white font-semibold">Coming soon</p>
+                                        </div>
+                                        <div className="backdrop-blur-md bg-white/5 rounded-lg p-3 border border-white/10">
+                                            <p className="text-white/50 text-xs mb-1">Total Hours</p>
+                                            <p className="text-white font-semibold">Coming soon</p>
+                                        </div>
+                                        <div className="backdrop-blur-md bg-white/5 rounded-lg p-3 border border-white/10">
+                                            <p className="text-white/50 text-xs mb-1">First Played</p>
+                                            <p className="text-white font-semibold">Coming soon</p>
+                                        </div>
+                                        <div className="backdrop-blur-md bg-white/5 rounded-lg p-3 border border-white/10">
+                                            <p className="text-white/50 text-xs mb-1">Your Rank</p>
+                                            <p className="text-purple-400 font-semibold">Coming soon</p>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>

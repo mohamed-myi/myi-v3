@@ -1,53 +1,107 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { Play, Info } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Play, Info, Music, User } from "lucide-react";
+import { useBackgroundMode } from "@/contexts/background-mode-context";
 
 interface HeroProps {
     title: string;
     subtitle: string;
     description: string;
-    image: string;
+    image: string;  // Kept for compatibility, but background now handled by AppLayout
+    songOfTheDayName?: string;
+    songOfTheDayArtist?: string;
+    topArtistName?: string;
 }
 
-export function Hero({ title, subtitle, description, image }: HeroProps) {
-    return (
-        <div className="relative h-[80vh] w-full flex items-center mb-12">
-            {/* Background Image */}
-            <div
-                className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-60 mask-image-b"
-                style={{ backgroundImage: `url(${image})` }}
-            >
-                <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent" />
-                <div className="absolute inset-0 bg-gradient-to-r from-background via-background/60 to-transparent" />
-            </div>
+export function Hero({ title, subtitle, description, songOfTheDayName, songOfTheDayArtist, topArtistName }: HeroProps) {
+    const { mode } = useBackgroundMode();
 
-            {/* Content */}
-            <div className="relative z-10 px-8 md:px-16 container mx-auto">
+    // Dynamic content based on mode
+    const dynamicTitle = mode === "song-of-the-day" && songOfTheDayName
+        ? songOfTheDayName
+        : mode === "top-artist" && topArtistName
+            ? topArtistName
+            : title;
+
+    const dynamicSubtitle = mode === "song-of-the-day"
+        ? "Song of the Day"
+        : mode === "top-artist"
+            ? "Your Top Artist"
+            : subtitle;
+
+    const dynamicDescription = mode === "song-of-the-day" && songOfTheDayArtist
+        ? `by ${songOfTheDayArtist}`
+        : mode === "top-artist"
+            ? "Your most listened artist this year"
+            : description;
+
+    const ModeIcon = mode === "song-of-the-day" ? Music : User;
+
+    return (
+        <div className="relative min-h-[70vh] md:min-h-[80vh] w-full flex items-center justify-center mb-12">
+            {/* Content - no background needed, AppLayout provides persistent background */}
+            <div className="relative z-10 w-[95%] max-w-[1920px] mx-auto px-4 md:px-6 py-16 md:py-24 flex justify-center">
                 <motion.div
                     initial={{ opacity: 0, y: 30 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.8 }}
-                    className="max-w-2xl space-y-6"
+                    className="max-w-2xl space-y-6 text-center items-center flex flex-col"
                 >
-                    <div className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-sm text-primary font-medium">
-                        {subtitle}
+                    {/* Badge - Glassmorphic with mode icon */}
+                    <div className="inline-block">
+                        <AnimatePresence mode="wait">
+                            <motion.span
+                                key={mode}
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -10 }}
+                                transition={{ duration: 0.2 }}
+                                className="px-4 py-1.5 rounded-full backdrop-blur-md bg-purple-500/20 border border-purple-400/30 text-purple-200 text-sm inline-flex items-center gap-2"
+                            >
+                                <ModeIcon className="w-3.5 h-3.5" />
+                                {dynamicSubtitle}
+                            </motion.span>
+                        </AnimatePresence>
                     </div>
 
-                    <h1 className="text-6xl md:text-8xl font-bold tracking-tighter text-white drop-shadow-2xl">
-                        {title}
-                    </h1>
+                    {/* Title - Responsive sizing with animation */}
+                    <AnimatePresence mode="wait">
+                        <motion.h1
+                            key={`${mode}-${dynamicTitle}`}
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            transition={{ duration: 0.3 }}
+                            className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl tracking-tight text-white font-bold"
+                        >
+                            {dynamicTitle}
+                        </motion.h1>
+                    </AnimatePresence>
 
-                    <p className="text-lg md:text-xl text-gray-200 drop-shadow-md leading-relaxed">
-                        {description}
-                    </p>
+                    {/* Description with animation */}
+                    <AnimatePresence mode="wait">
+                        <motion.p
+                            key={`${mode}-desc`}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="text-white/60 text-base md:text-lg"
+                        >
+                            {dynamicDescription}
+                        </motion.p>
+                    </AnimatePresence>
 
-                    <div className="flex items-center gap-4 pt-4">
-                        <button className="flex items-center gap-2 bg-white text-black px-8 py-3 rounded-md font-bold hover:bg-gray-200 transition text-lg">
-                            <Play className="fill-black w-6 h-6" /> Play History
+                    {/* Buttons - Responsive layout */}
+                    <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-4">
+                        <button className="px-6 py-3 rounded-full bg-white text-black hover:scale-105 transition-transform flex items-center justify-center gap-2 shadow-xl font-medium">
+                            <Play className="w-4 h-4 fill-black" />
+                            {mode === "song-of-the-day" ? "Play Song" : "Play Artist"}
                         </button>
-                        <button className="flex items-center gap-2 bg-gray-500/30 backdrop-blur-sm text-white px-8 py-3 rounded-md font-bold hover:bg-gray-500/50 transition text-lg">
-                            <Info className="w-6 h-6" /> More Info
+                        <button className="px-6 py-3 rounded-full backdrop-blur-md bg-white/10 hover:bg-white/20 border border-white/20 transition-all flex items-center justify-center gap-2 font-medium">
+                            <Info className="w-4 h-4" />
+                            {mode === "song-of-the-day" ? "Track Info" : "Artist Info"}
                         </button>
                     </div>
                 </motion.div>

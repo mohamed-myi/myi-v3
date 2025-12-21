@@ -4,9 +4,16 @@ import { ContentRow } from '../content-row'
 
 // Mock lucide-react icons
 jest.mock('lucide-react', () => ({
-    ChevronLeft: () => <span data-testid="chevron-left">Left</span>,
     ChevronRight: () => <span data-testid="chevron-right">Right</span>,
-    RefreshCw: () => <span data-testid="refresh-cw">Refresh</span>
+    RefreshCw: ({ className }: { className?: string }) => <span data-testid="refresh-cw" className={className}>Refresh</span>
+}))
+
+// Mock next/image
+jest.mock('next/image', () => ({
+    __esModule: true,
+    default: ({ src, alt, fill, className }: { src: string; alt: string; fill?: boolean; className?: string }) => (
+        <img src={src} alt={alt} className={className} data-fill={fill} />
+    )
 }))
 
 const mockArtistItems = [
@@ -30,7 +37,6 @@ describe('ContentRow', () => {
             render(
                 <ContentRow title="Top Artists" items={mockArtistItems} type="artist" />
             )
-
             expect(screen.getByText('Top Artists')).toBeInTheDocument()
         })
 
@@ -38,7 +44,6 @@ describe('ContentRow', () => {
             render(
                 <ContentRow title="Top Artists" items={mockArtistItems} type="artist" />
             )
-
             expect(screen.getByText('Pink Floyd')).toBeInTheDocument()
             expect(screen.getByText('Led Zeppelin')).toBeInTheDocument()
         })
@@ -47,8 +52,6 @@ describe('ContentRow', () => {
             render(
                 <ContentRow title="Top Artists" items={mockArtistItems} type="artist" />
             )
-
-            // Artist type shows name below the card
             expect(screen.getByText('Pink Floyd')).toBeInTheDocument()
         })
 
@@ -56,8 +59,6 @@ describe('ContentRow', () => {
             render(
                 <ContentRow title="Top Tracks" items={mockTrackItems} type="track" />
             )
-
-            // Track type shows both track name and artist
             expect(screen.getByText('Comfortably Numb')).toBeInTheDocument()
             expect(screen.getByText('Pink Floyd')).toBeInTheDocument()
         })
@@ -66,7 +67,6 @@ describe('ContentRow', () => {
             render(
                 <ContentRow title="Recently Played" items={mockWideItems} type="wide" />
             )
-
             expect(screen.getByText('Recently Played 1')).toBeInTheDocument()
         })
 
@@ -74,9 +74,15 @@ describe('ContentRow', () => {
             render(
                 <ContentRow title="Empty Row" items={[]} type="artist" />
             )
-
             expect(screen.getByText('Empty Row')).toBeInTheDocument()
-            // No items should render
+        })
+
+        it('shows rank for artists when showRank is true', () => {
+            render(
+                <ContentRow title="Top Artists" items={mockArtistItems} type="artist" showRank={true} />
+            )
+            expect(screen.getByText('Rank #1')).toBeInTheDocument()
+            expect(screen.getByText('Rank #2')).toBeInTheDocument()
         })
     })
 
@@ -94,18 +100,37 @@ describe('ContentRow', () => {
             )
 
             fireEvent.click(screen.getByText('Pink Floyd'))
-
             expect(mockOnItemClick).toHaveBeenCalledWith(mockArtistItems[0])
         })
 
-        it('scroll buttons are visible on hover', () => {
+        it('calls onRefresh when refresh button is clicked', () => {
+            const mockOnRefresh = jest.fn()
+
             render(
-                <ContentRow title="Top Artists" items={mockArtistItems} type="artist" />
+                <ContentRow
+                    title="Top Artists"
+                    items={mockArtistItems}
+                    type="artist"
+                    onRefresh={mockOnRefresh}
+                />
             )
 
-            // Scroll buttons should exist (visible on group hover via CSS)
-            expect(screen.getByTestId('chevron-left')).toBeInTheDocument()
-            expect(screen.getByTestId('chevron-right')).toBeInTheDocument()
+            fireEvent.click(screen.getByTestId('refresh-cw').closest('button')!)
+            expect(mockOnRefresh).toHaveBeenCalled()
+        })
+
+        it('shows spinning animation when refreshing', () => {
+            render(
+                <ContentRow
+                    title="Top Artists"
+                    items={mockArtistItems}
+                    type="artist"
+                    onRefresh={jest.fn()}
+                    isRefreshing={true}
+                />
+            )
+
+            expect(screen.getByTestId('refresh-cw')).toHaveClass('animate-spin')
         })
     })
 
@@ -155,6 +180,23 @@ describe('ContentRow', () => {
             expect(screen.getByText('Last 6 Months')).toBeInTheDocument()
         })
 
+        it('shows All Time option when hasImportedHistory is true', () => {
+            render(
+                <ContentRow
+                    title="Top Artists"
+                    items={mockArtistItems}
+                    type="artist"
+                    showTimeRange={true}
+                    selectedRange="year"
+                    onRangeChange={jest.fn()}
+                    hasImportedHistory={true}
+                />
+            )
+
+            fireEvent.click(screen.getByText('Last 1 Year'))
+            expect(screen.getByText('All Time')).toBeInTheDocument()
+        })
+
         it('changes selection and closes dropdown', () => {
             const mockOnRangeChange = jest.fn()
 
@@ -169,9 +211,7 @@ describe('ContentRow', () => {
                 />
             )
 
-            // Open dropdown
             fireEvent.click(screen.getByText('Last 1 Year'))
-            // Select new option
             fireEvent.click(screen.getByText('Last 4 Weeks'))
 
             expect(mockOnRangeChange).toHaveBeenCalledWith('4weeks')

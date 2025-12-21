@@ -1,4 +1,3 @@
-
 import React from 'react'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { AppLayout } from '../app-layout'
@@ -15,6 +14,32 @@ jest.mock('@/lib/api', () => ({
     api: {
         post: jest.fn()
     }
+}))
+
+jest.mock('@/hooks/use-dashboard', () => ({
+    useUser: jest.fn(() => ({
+        user: { id: '1', displayName: 'Test User', image: null },
+        isLoading: false,
+        isAuthenticated: true
+    })),
+    useTopArtists: jest.fn(() => ({
+        artists: [{ id: 'a1', name: 'Pink Floyd', image: 'https://example.com/pf.jpg' }],
+        isLoading: false
+    }))
+}))
+
+// Mock next/image
+jest.mock('next/image', () => ({
+    __esModule: true,
+    default: ({ src, alt }: { src: string; alt: string }) => <img src={src} alt={alt} />
+}))
+
+// Mock lucide-react icons
+jest.mock('lucide-react', () => ({
+    LogOut: () => <span data-testid="logout-icon">Logout</span>,
+    Upload: () => <span data-testid="upload-icon">Upload</span>,
+    Menu: () => <span data-testid="menu-icon">Menu</span>,
+    X: () => <span data-testid="x-icon">X</span>
 }))
 
 describe('AppLayout', () => {
@@ -45,10 +70,10 @@ describe('AppLayout', () => {
         render(<AppLayout>Content</AppLayout>)
 
         const historyLink = screen.getByText('History')
-        expect(historyLink).toHaveClass('text-white') // Active class
+        expect(historyLink).toHaveClass('text-white/90')
 
         const browseLink = screen.getByText('Browse')
-        expect(browseLink).not.toHaveClass('text-white') // Inactive
+        expect(browseLink).toHaveClass('text-white/60')
     })
 
     it('handleLogout calls API and redirects', async () => {
@@ -60,8 +85,8 @@ describe('AppLayout', () => {
         const logoutBtn = screen.getByTitle('Logout')
         fireEvent.click(logoutBtn)
 
-        // Click Yes in confirmation dialog
-        const confirmBtn = screen.getByText('Yes')
+        // Click Sign Out in confirmation dialog  
+        const confirmBtn = screen.getByText('Sign Out')
         fireEvent.click(confirmBtn)
 
         await waitFor(() => {
@@ -80,8 +105,8 @@ describe('AppLayout', () => {
         const logoutBtn = screen.getByTitle('Logout')
         fireEvent.click(logoutBtn)
 
-        // Click Yes in confirmation dialog
-        const confirmBtn = screen.getByText('Yes')
+        // Click Sign Out in confirmation dialog
+        const confirmBtn = screen.getByText('Sign Out')
         fireEvent.click(confirmBtn)
 
         await waitFor(() => {
@@ -90,5 +115,58 @@ describe('AppLayout', () => {
         })
 
         consoleSpy.mockRestore()
+    })
+
+    it('renders footer with sync status', () => {
+        render(<AppLayout>Content</AppLayout>)
+
+        expect(screen.getByText(/SYNC STATUS:/)).toBeInTheDocument()
+        expect(screen.getByText('v3.0.0')).toBeInTheDocument()
+    })
+
+    it('renders hamburger menu button on mobile', () => {
+        render(<AppLayout>Content</AppLayout>)
+
+        // Hamburger should be visible (hidden via CSS on desktop, but rendered)
+        expect(screen.getByTestId('menu-icon')).toBeInTheDocument()
+    })
+
+    it('opens mobile menu when hamburger clicked', () => {
+        render(<AppLayout>Content</AppLayout>)
+
+        const hamburgerBtn = screen.getByTestId('menu-icon').closest('button')
+        fireEvent.click(hamburgerBtn!)
+
+        // Menu should show close icon
+        expect(screen.getByTestId('x-icon')).toBeInTheDocument()
+    })
+
+    it('shows navigation links in mobile menu', () => {
+        render(<AppLayout>Content</AppLayout>)
+
+        const hamburgerBtn = screen.getByTestId('menu-icon').closest('button')
+        fireEvent.click(hamburgerBtn!)
+
+        // All links should be visible in mobile menu
+        expect(screen.getAllByText('Browse').length).toBeGreaterThanOrEqual(1)
+        expect(screen.getAllByText('History').length).toBeGreaterThanOrEqual(1)
+        expect(screen.getAllByText('Stats').length).toBeGreaterThanOrEqual(1)
+    })
+
+    it('closes mobile menu when close button clicked', () => {
+        render(<AppLayout>Content</AppLayout>)
+
+        // Open menu
+        const hamburgerBtn = screen.getByTestId('menu-icon').closest('button')
+        fireEvent.click(hamburgerBtn!)
+
+        expect(screen.getByTestId('x-icon')).toBeInTheDocument()
+
+        // Close menu
+        const closeBtn = screen.getByTestId('x-icon').closest('button')
+        fireEvent.click(closeBtn!)
+
+        // Back to hamburger
+        expect(screen.getByTestId('menu-icon')).toBeInTheDocument()
     })
 })

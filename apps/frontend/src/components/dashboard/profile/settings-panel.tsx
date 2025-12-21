@@ -2,7 +2,6 @@
 
 import { motion } from "framer-motion";
 import { Settings, Globe, Eye, Mail, Music, Users, Clock } from "lucide-react";
-import { Card } from "@/components/ui/card";
 import { useSettings, useUpdateSettings } from "@/hooks/use-profile";
 
 interface ToggleProps {
@@ -15,23 +14,23 @@ interface ToggleProps {
 
 function Toggle({ label, description, icon, checked, onChange }: ToggleProps) {
     return (
-        <div className="flex items-center justify-between py-4 border-b border-zinc-800 last:border-0">
+        <div className="flex items-center justify-between py-4 border-b border-white/10 last:border-0">
             <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-zinc-800 text-zinc-400">
+                <div className="p-2 rounded-lg bg-white/5 text-white/50 border border-white/10">
                     {icon}
                 </div>
                 <div>
                     <p className="font-medium text-white">{label}</p>
-                    <p className="text-sm text-zinc-500">{description}</p>
+                    <p className="text-sm text-white/40">{description}</p>
                 </div>
             </div>
             <button
                 onClick={() => onChange(!checked)}
-                className={`relative w-12 h-6 rounded-full transition-colors ${checked ? "bg-primary" : "bg-zinc-700"
+                className={`relative w-12 h-6 rounded-full transition-colors ${checked ? "bg-purple-600" : "bg-white/20"
                     }`}
             >
                 <span
-                    className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${checked ? "translate-x-6" : ""
+                    className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform shadow-sm ${checked ? "translate-x-6" : ""
                         }`}
                 />
             </button>
@@ -42,36 +41,33 @@ function Toggle({ label, description, icon, checked, onChange }: ToggleProps) {
 export function SettingsPanel() {
     const { settings, isLoading, mutate } = useSettings();
     const { updateSettings } = useUpdateSettings();
-    // Use settings directly when available, fallback to undefined
     const localSettings = settings;
 
     const handleToggle = async (key: keyof NonNullable<typeof settings>, value: boolean) => {
         if (!localSettings) return;
 
         const updated = { ...localSettings, [key]: value };
-        // Optimistic update
         mutate(updated, false);
 
         try {
             await updateSettings({ [key]: value });
         } catch {
-            // Revert on error; refetch from server
             mutate();
         }
     };
 
     if (isLoading || !localSettings) {
         return (
-            <Card disableHover className="p-6 bg-zinc-900/50 border-zinc-800">
+            <div className="backdrop-blur-md bg-white/5 border border-white/10 rounded-2xl p-6">
                 <div className="animate-pulse space-y-4">
-                    <div className="h-6 w-32 bg-zinc-800 rounded" />
+                    <div className="h-6 w-32 bg-white/10 rounded" />
                     <div className="space-y-3">
                         {[1, 2, 3, 4].map((i) => (
-                            <div key={i} className="h-16 bg-zinc-800 rounded" />
+                            <div key={i} className="h-16 bg-white/5 rounded" />
                         ))}
                     </div>
                 </div>
-            </Card>
+            </div>
         );
     }
 
@@ -81,12 +77,14 @@ export function SettingsPanel() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.4 }}
         >
-            <Card disableHover className="p-6 bg-zinc-900/50 border-zinc-800">
+            <div className="backdrop-blur-md bg-white/5 border border-white/10 rounded-2xl p-6">
+                {/* Header */}
                 <div className="flex items-center gap-2 mb-6">
-                    <Settings className="w-5 h-5 text-primary" />
-                    <h2 className="text-xl font-semibold text-white">Settings</h2>
+                    <Settings className="w-5 h-5 text-purple-400" />
+                    <h2 className="text-xl font-semibold text-purple-300">Settings</h2>
                 </div>
 
+                {/* Toggles */}
                 <div className="space-y-1">
                     <Toggle
                         label="Public Profile"
@@ -125,14 +123,15 @@ export function SettingsPanel() {
                     />
                 </div>
 
-                <div className="mt-6 pt-4 border-t border-zinc-800">
+                {/* Timezone Selector */}
+                <div className="mt-6 pt-6 border-t border-white/10">
                     <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-lg bg-zinc-800 text-zinc-400">
+                        <div className="p-2 rounded-lg bg-white/5 text-white/50 border border-white/10">
                             <Globe className="w-4 h-4" />
                         </div>
                         <div className="flex-1">
                             <p className="font-medium text-white">Timezone</p>
-                            <p className="text-sm text-zinc-500">Used for daily stats</p>
+                            <p className="text-sm text-white/40">Used for daily stats</p>
                         </div>
                         <select
                             value={localSettings.timezone}
@@ -142,7 +141,7 @@ export function SettingsPanel() {
                                 mutate(updated, false);
                                 await updateSettings({ timezone: tz });
                             }}
-                            className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary"
+                            className="bg-white/5 border border-white/20 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-400 backdrop-blur-md"
                         >
                             <option value="UTC">UTC</option>
                             <option value="America/New_York">Eastern Time</option>
@@ -159,7 +158,7 @@ export function SettingsPanel() {
                         </select>
                     </div>
                 </div>
-            </Card>
+            </div>
         </motion.div>
     );
 }

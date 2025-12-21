@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react";
 import { api } from "@/lib/api";
+import { Upload, X } from "lucide-react";
 
 interface ImportHistoryModalProps {
     isOpen: boolean;
@@ -42,7 +43,7 @@ export function ImportHistoryModal({ isOpen, onClose }: ImportHistoryModalProps)
 
             setStatus(`Upload complete! Job ID: ${res.data.jobId}`);
             setJobId(res.data.jobId);
-            setFile(null); // Clear file
+            setFile(null);
         } catch (error: unknown) {
             console.error("Upload failed", error);
             const axiosError = error as { response?: { data?: { error?: string } }; message?: string };
@@ -53,15 +54,33 @@ export function ImportHistoryModal({ isOpen, onClose }: ImportHistoryModalProps)
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-80">
-            <div className="w-full max-w-md p-6 bg-[#121212] border border-[#333] rounded-xl shadow-2xl">
-                <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-xl font-bold text-white">Import History</h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-white">✕</button>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-fade-in">
+            {/* Backdrop - Glassmorphic */}
+            <div
+                className="absolute inset-0 bg-black/80 backdrop-blur-md"
+                onClick={onClose}
+            />
+
+            {/* Modal Content - Glassmorphic */}
+            <div className="relative w-full max-w-md backdrop-blur-2xl bg-gradient-to-b from-white/10 to-white/5 border border-white/20 rounded-2xl shadow-2xl overflow-hidden">
+                {/* Header */}
+                <div className="flex items-center justify-between p-6 border-b border-white/10">
+                    <h2 className="text-xl font-semibold text-white">Import History</h2>
+                    <button
+                        onClick={onClose}
+                        className="w-9 h-9 rounded-full backdrop-blur-md bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center transition-all"
+                    >
+                        <X className="w-4 h-4" />
+                    </button>
                 </div>
 
-                <div className="space-y-4">
-                    <div className="p-4 border-2 border-dashed border-[#333] rounded-lg text-center hover:border-[#A855F7] transition-colors cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                {/* Content */}
+                <div className="p-6 space-y-4">
+                    {/* File Drop Zone */}
+                    <div
+                        className="p-8 border-2 border-dashed border-white/20 hover:border-purple-400/50 rounded-xl text-center transition-colors cursor-pointer backdrop-blur-md bg-white/5"
+                        onClick={() => fileInputRef.current?.click()}
+                    >
                         <input
                             type="file"
                             accept=".json"
@@ -69,40 +88,50 @@ export function ImportHistoryModal({ isOpen, onClose }: ImportHistoryModalProps)
                             onChange={handleFileChange}
                             className="hidden"
                         />
+                        <Upload className="w-10 h-10 mx-auto mb-3 text-white/40" />
                         {file ? (
                             <p className="text-white font-medium">{file.name}</p>
                         ) : (
-                            <p className="text-gray-400">Click to select endsong.json</p>
+                            <>
+                                <p className="text-white/60">Click to select file</p>
+                                <p className="text-xs text-white/40 mt-1">endsong.json from Spotify data export</p>
+                            </>
                         )}
                     </div>
 
+                    {/* Status Message */}
                     {status && (
-                        <div className={`p-3 rounded text-sm ${status.startsWith("Error") ? "bg-red-900/50 text-red-200" : "bg-green-900/50 text-green-200"}`}>
+                        <div className={`p-4 rounded-xl text-sm backdrop-blur-md ${status.startsWith("Error")
+                                ? "bg-red-500/10 border border-red-400/30 text-red-300"
+                                : "bg-green-500/10 border border-green-400/30 text-green-300"
+                            }`}>
                             {status}
                         </div>
                     )}
 
-                    <div className="flex justify-end gap-3 pt-2">
-                        <button
-                            onClick={onClose}
-                            className="px-4 py-2 text-sm text-gray-300 hover:text-white"
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            onClick={handleUpload}
-                            disabled={!file || uploading}
-                            className="px-4 py-2 text-sm font-semibold text-black bg-[#A855F7] rounded hover:bg-[#9333ea] disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            {uploading ? "Uploading..." : "Import File"}
-                        </button>
-                    </div>
-
+                    {/* Job ID Info */}
                     {jobId && (
-                        <p className="text-xs text-center text-gray-500 mt-2">
-                            You can check status at /api/me/import/status?jobId={jobId}
+                        <p className="text-xs text-center text-white/40">
+                            Job ID: {jobId}
                         </p>
                     )}
+                </div>
+
+                {/* Footer Actions */}
+                <div className="flex justify-end gap-3 p-6 pt-0">
+                    <button
+                        onClick={onClose}
+                        className="px-6 py-3 rounded-xl backdrop-blur-md bg-white/10 hover:bg-white/20 border border-white/20 text-sm font-medium text-white transition-all"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={handleUpload}
+                        disabled={!file || uploading}
+                        className="px-6 py-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-sm font-semibold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {uploading ? "Uploading..." : "Import File"}
+                    </button>
                 </div>
             </div>
         </div>

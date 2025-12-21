@@ -29,14 +29,17 @@ jest.mock('lucide-react', () => ({
     X: () => <span data-testid="close-icon">×</span>,
     Play: () => <span>▶</span>,
     Heart: () => <span>♥</span>,
-    Share2: () => <span>↗</span>
+    Share2: () => <span>↗</span>,
+    ExternalLink: () => <span>External</span>
 }))
 
 const mockItem = {
     id: 't1',
     name: 'Comfortably Numb',
     artist: 'Pink Floyd',
-    image: 'http://img.com/wall.jpg'
+    image: 'http://img.com/wall.jpg',
+    spotifyId: 'spotify-track-123',
+    artistSpotifyId: 'spotify-artist-456'
 }
 
 describe('ItemModal', () => {
@@ -131,5 +134,29 @@ describe('ItemModal', () => {
         unmount()
 
         expect(document.body.style.overflow).toBe('unset')
+    })
+
+    it('renders View Artist button', () => {
+        render(
+            <ItemModal isOpen={true} onClose={mockOnClose} item={mockItem} />
+        )
+
+        expect(screen.getByText('View Artist')).toBeInTheDocument()
+    })
+
+    it('renders View Song button', () => {
+        render(
+            <ItemModal isOpen={true} onClose={mockOnClose} item={mockItem} />
+        )
+
+        expect(screen.getByText('View Song')).toBeInTheDocument()
+    })
+
+    it('renders stats section', () => {
+        render(
+            <ItemModal isOpen={true} onClose={mockOnClose} item={mockItem} />
+        )
+
+        expect(screen.getByText(/Your Stats/)).toBeInTheDocument()
     })
 })

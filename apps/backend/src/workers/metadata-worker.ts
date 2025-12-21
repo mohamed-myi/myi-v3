@@ -7,6 +7,11 @@ import { setMetadataWorkerRunning } from './worker-status';
 
 const log = workerLoggers.metadata;
 
+// Exponential backoff configuration for missing tokens
+const MIN_BACKOFF_MS = 10_000;      // Start at 10 seconds
+const MAX_BACKOFF_MS = 300_000;     // Max 5 minutes
+const WARN_LOG_INTERVAL_MS = 60_000; // Only log warning once per minute
+
 // Process pending artists; fetch metadata and update DB
 async function processArtists(accessToken: string): Promise<number> {
     const artistIds = await popArtistsForMetadata(50);
@@ -146,6 +151,10 @@ export async function metadataWorker() {
     log.info('Metadata worker started');
     setMetadataWorkerRunning(true);
 
+    // Backoff state for missing tokens
+    let currentBackoff = MIN_BACKOFF_MS;
+    let lastWarnTime = 0;
+
     while (true) {
         try {
             await waitForRateLimit();
@@ -158,10 +167,23 @@ export async function metadataWorker() {
             });
 
             if (!user?.userId) {
-                log.warn('No valid user tokens found for metadata worker. Retrying...');
-                await new Promise((resolve) => setTimeout(resolve, 10000));
+                // Rate-limit warning logs to once per minute
+                const now = Date.now();
+                if (now - lastWarnTime >= WARN_LOG_INTERVAL_MS) {
+                    log.warn(
+                        { backoffMs: currentBackoff },
+                        'No valid user tokens found for metadata worker. Waiting with backoff...'
+                    );
+                    lastWarnTime = now;
+                }
+                await new Promise((resolve) => setTimeout(resolve, currentBackoff));
+                // Exponential backoff with cap
+                currentBackoff = Math.min(currentBackoff * 2, MAX_BACKOFF_MS);
                 continue;
             }
+
+            // Reset backoff on successful token acquisition
+            currentBackoff = MIN_BACKOFF_MS;
 
             const tokenResult = await getValidAccessToken(user.userId);
             if (!tokenResult) {

@@ -34,7 +34,7 @@ test.describe('History Page', () => {
         await page.goto('/dashboard/history')
 
         await expect(page.getByRole('heading', { name: 'History' })).toBeVisible()
-        await expect(page.getByText('Today')).toBeVisible()
+        await expect(page.getByRole('heading', { name: 'Today' })).toBeVisible()
         await expect(page.getByText('Today Track')).toBeVisible()
     })
 
@@ -47,7 +47,7 @@ test.describe('History Page', () => {
 
         await page.goto('/dashboard/history')
 
-        await expect(page.getByText(/No history found/i)).toBeVisible()
+        await expect(page.getByText(/No listening history/i)).toBeVisible()
     })
 
     test('renders grid layout with items', async ({ page }) => {

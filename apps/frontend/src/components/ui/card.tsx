@@ -26,7 +26,12 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(
                 whileHover={disableHover ? undefined : { scale: 1.05, zIndex: 10 }}
                 transition={{ type: "spring", stiffness: 300, damping: 20 }}
                 className={cn(
-                    "relative overflow-hidden rounded-lg bg-surface transition-colors hover:shadow-lg hover:shadow-primary/20",
+                    // Glassmorphic card styling
+                    "relative overflow-hidden rounded-lg",
+                    "backdrop-blur-md bg-white/5 hover:bg-white/10",
+                    "border border-white/10 hover:border-white/20",
+                    "transition-all duration-300",
+                    "shadow-xl hover:shadow-purple-500/20",
                     variants[variant],
                     className
                 )}
@@ -46,12 +51,12 @@ const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDiv
 CardHeader.displayName = "CardHeader"
 
 const CardTitle = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLHeadingElement>>(({ className, ...props }, ref) => (
-    <h3 ref={ref} className={cn("text-2xl font-semibold leading-none tracking-tight", className)} {...props} />
+    <h3 ref={ref} className={cn("text-2xl font-semibold leading-none tracking-tight text-white", className)} {...props} />
 ))
 CardTitle.displayName = "CardTitle"
 
 const CardDescription = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLParagraphElement>>(({ className, ...props }, ref) => (
-    <p ref={ref} className={cn("text-sm text-zinc-400", className)} {...props} />
+    <p ref={ref} className={cn("text-sm text-white/50", className)} {...props} />
 ))
 CardDescription.displayName = "CardDescription"
 
@@ -66,4 +71,3 @@ const CardFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDiv
 CardFooter.displayName = "CardFooter"
 
 export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent };
-

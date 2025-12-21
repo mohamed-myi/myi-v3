@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from "react";
@@ -7,6 +6,7 @@ import { Hero } from "@/components/dashboard/hero";
 import { ContentRow } from "@/components/dashboard/content-row";
 import { ItemModal } from "@/components/dashboard/item-modal";
 import { useUser, useTopArtists, useTopTracks, useRecentHistory } from "@/hooks/use-dashboard";
+import { useSongOfTheDay } from "@/hooks/use-song-of-the-day";
 
 interface SelectedItem {
     id: string;
@@ -30,6 +30,9 @@ export default function DashboardPage() {
     const heroRange = hasImported ? 'alltime' : 'year';
     const { artists: heroArtists } = useTopArtists(heroRange);
 
+    // Song of the Day for background mode
+    const { track: songOfTheDay } = useSongOfTheDay();
+
     const { artists: topArtists, triggerManualRefresh: refreshArtists } = useTopArtists(artistRange);
     const { tracks: topTracks, triggerManualRefresh: refreshTracks } = useTopTracks(trackRange);
     const { history: recentHistory } = useRecentHistory(20);
@@ -42,16 +45,19 @@ export default function DashboardPage() {
 
     return (
         <AppLayout>
-            <div className="min-h-screen bg-background pb-20">
-
+            <div className="min-h-screen pb-20">
                 <Hero
                     title={heroArtists?.[0]?.name || "Loading..."}
                     subtitle="#1 Artist"
                     description={hasImported ? "Your all-time favorite artist." : "Your favorite artist over the last year."}
                     image={heroArtists?.[0]?.image || ""}
+                    songOfTheDayName={songOfTheDay?.name}
+                    songOfTheDayArtist={songOfTheDay?.artist}
+                    topArtistName={heroArtists?.[0]?.name}
                 />
 
-                <div className="-mt-32 relative z-20 space-y-8">
+                {/* Content Sections - Overlapping Hero */}
+                <div className="-mt-32 relative z-20 space-y-4">
                     <ContentRow
                         title="Top Artists"
                         items={topArtists || []}
@@ -86,8 +92,6 @@ export default function DashboardPage() {
                         isRefreshing={isRefreshing}
                         hasImportedHistory={hasImported}
                     />
-
-
                 </div>
             </div>
 
@@ -99,4 +103,3 @@ export default function DashboardPage() {
         </AppLayout>
     );
 }
-

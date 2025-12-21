@@ -11,12 +11,22 @@ jest.mock('swr', () => ({
     default: jest.fn(),
 }));
 
+// Mock next/image
+jest.mock('next/image', () => ({
+    __esModule: true,
+    default: ({ src, alt, className }: { src: string; alt: string; className?: string }) => (
+        <img src={src} alt={alt} className={className} />
+    )
+}))
+
 // Mock ResizeObserver for Recharts
 global.ResizeObserver = jest.fn().mockImplementation(() => ({
     observe: jest.fn(),
     unobserve: jest.fn(),
     disconnect: jest.fn(),
 }));
+
+// These warnings don't affect test results and can be ignored
 
 describe('Charts Components', () => {
     beforeEach(() => {
@@ -30,7 +40,8 @@ describe('Charts Components', () => {
                 isLoading: true
             });
             const { container } = render(<MoodChart />);
-            expect(container.firstChild).toHaveClass('animate-pulse');
+            // Loading state renders a container with animate-pulse
+            expect(container.querySelector('.animate-pulse')).toBeInTheDocument();
         });
 
         it('renders chart title when data is loaded', () => {
@@ -40,7 +51,17 @@ describe('Charts Components', () => {
             });
             render(<MoodChart />);
             expect(screen.getByText('Mood Model')).toBeInTheDocument();
-            expect(screen.getByText('Your music\'s emotional timeline over the last 30 days.')).toBeInTheDocument();
+            expect(screen.getByText("Your music's emotional timeline over the last 30 days.")).toBeInTheDocument();
+        });
+
+        it('renders legend when data is loaded', () => {
+            (useSWR as jest.Mock).mockReturnValue({
+                data: [{ date: '2025-01-01', valence: 0.5, energy: 0.5 }],
+                isLoading: false
+            });
+            render(<MoodChart />);
+            expect(screen.getByText('Happiness')).toBeInTheDocument();
+            expect(screen.getByText('Energy')).toBeInTheDocument();
         });
     });
 
@@ -48,7 +69,7 @@ describe('Charts Components', () => {
         it('renders loading state', () => {
             (useSWR as jest.Mock).mockReturnValue({ data: undefined, isLoading: true });
             const { container } = render(<DailyDoseChart />);
-            expect(container.firstChild).toHaveClass('animate-pulse');
+            expect(container.querySelector('.animate-pulse')).toBeInTheDocument();
         });
 
         it('renders title and data', () => {
@@ -65,7 +86,7 @@ describe('Charts Components', () => {
         it('renders loading state', () => {
             (useSWR as jest.Mock).mockReturnValue({ data: undefined, isLoading: true });
             const { container } = render(<OnRepeatList />);
-            expect(container.firstChild).toHaveClass('animate-pulse');
+            expect(container.querySelector('.animate-pulse')).toBeInTheDocument();
         });
 
         it('renders list of tracks', () => {
@@ -83,10 +104,10 @@ describe('Charts Components', () => {
                 isLoading: false
             });
             render(<OnRepeatList />);
-            expect(screen.getByText('On Repeat (Real Deal)')).toBeInTheDocument();
+            expect(screen.getByText('On Repeat')).toBeInTheDocument();
             expect(screen.getByText('Test Song')).toBeInTheDocument();
             expect(screen.getByText('Test Artist')).toBeInTheDocument();
-            expect(screen.getByText('1m')).toBeInTheDocument(); // Formatted time
+            expect(screen.getByText('1m')).toBeInTheDocument();
         });
 
         it('renders empty state', () => {

@@ -22,49 +22,36 @@ jest.mock('lucide-react', () => ({
 
 const defaultProps = {
     title: 'Pink Floyd',
-    subtitle: '#1 Last Year Artist',
-    description: 'Your top artist from the last year.',
+    subtitle: '#1 Artist',
+    description: 'Your favorite artist over the last year.',
     image: 'http://img.com/pf.jpg'
 }
 
 describe('Hero', () => {
     it('renders title prop', () => {
         render(<Hero {...defaultProps} />)
-
         expect(screen.getByText('Pink Floyd')).toBeInTheDocument()
     })
 
     it('renders subtitle badge', () => {
         render(<Hero {...defaultProps} />)
-
-        expect(screen.getByText('#1 Last Year Artist')).toBeInTheDocument()
+        expect(screen.getByText('#1 Artist')).toBeInTheDocument()
     })
 
     it('renders description text', () => {
         render(<Hero {...defaultProps} />)
-
-        expect(screen.getByText('Your top artist from the last year.')).toBeInTheDocument()
+        expect(screen.getByText('Your favorite artist over the last year.')).toBeInTheDocument()
     })
 
     it('renders Play History button', () => {
         render(<Hero {...defaultProps} />)
-
         expect(screen.getByRole('button', { name: /play history/i })).toBeInTheDocument()
         expect(screen.getByTestId('play-icon')).toBeInTheDocument()
     })
 
     it('renders More Info button', () => {
         render(<Hero {...defaultProps} />)
-
         expect(screen.getByRole('button', { name: /more info/i })).toBeInTheDocument()
         expect(screen.getByTestId('info-icon')).toBeInTheDocument()
-    })
-
-    it('applies background image style', () => {
-        const { container } = render(<Hero {...defaultProps} />)
-
-        // Check for the background image div
-        const bgDiv = container.querySelector('[style*="background-image"]')
-        expect(bgDiv).toBeInTheDocument()
     })
 })
