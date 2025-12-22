@@ -99,27 +99,3 @@ export interface SpotifyTracksBatchResponse {
 export interface SpotifyAlbumsBatchResponse {
     albums: SpotifyAlbum[];
 }
-
-// Audio features for a track
-export interface SpotifyAudioFeatures {
-    id: string;
-    tempo: number;
-    energy: number;
-    danceability: number;
-    valence: number;
-    acousticness: number;
-    instrumentalness: number;
-    liveness: number;
-    speechiness: number;
-    loudness: number;
-    key: number;
-    mode: number;
-    duration_ms: number;
-    time_signature: number;
-}
-
-// Response from GET /audio-features?ids=
-export interface SpotifyAudioFeaturesBatchResponse {
-    audio_features: (SpotifyAudioFeatures | null)[];
-}
-

@@ -2,7 +2,6 @@
 // Each worker sets its status when starting/stopping.
 
 let _syncWorkerRunning = false;
-let _audioFeaturesWorkerRunning = false;
 let _metadataWorkerRunning = false;
 let _topStatsWorkerRunning = false;
 
@@ -12,14 +11,6 @@ export function setSyncWorkerRunning(running: boolean): void {
 }
 export function isSyncWorkerRunning(): boolean {
     return _syncWorkerRunning;
-}
-
-// Audio Features Worker
-export function setAudioFeaturesWorkerRunning(running: boolean): void {
-    _audioFeaturesWorkerRunning = running;
-}
-export function isAudioFeaturesWorkerRunning(): boolean {
-    return _audioFeaturesWorkerRunning;
 }
 
 // Metadata Worker

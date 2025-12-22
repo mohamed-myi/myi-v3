@@ -83,7 +83,6 @@ export const build = async () => {
   return server;
 };
 
-import { audioFeaturesWorker } from './workers/audio-features-worker';
 import { metadataWorker } from './workers/metadata-worker';
 import { topStatsWorker, closeTopStatsWorker } from './workers/top-stats-worker';
 import { HealingService } from './services/healing';
@@ -100,7 +99,6 @@ if (require.main === module) {
 
       // Start background workers
       // In a real production setup, these would likely be processes/containers but I am running a free option.
-      audioFeaturesWorker().catch(err => logger.error({ error: err }, 'Audio Features Worker failed'));
       metadataWorker().catch(err => logger.error({ error: err }, 'Metadata Worker failed'));
 
       // Self-Healing

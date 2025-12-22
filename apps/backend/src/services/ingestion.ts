@@ -1,5 +1,5 @@
 import { prisma } from '../lib/prisma';
-import { queueArtistForMetadata, queueTrackForFeatures } from '../lib/redis';
+import { queueArtistForMetadata } from '../lib/redis';
 import type { ParsedListeningEvent, SyncSummary, InsertResultWithIds, SyncContext } from '../types/ingestion';
 
 export async function upsertAlbum(
@@ -142,9 +142,6 @@ export async function upsertTrack(
         },
         select: { id: true, spotifyId: true },
     });
-
-    // Queue for audio features
-    await queueTrackForFeatures(created.spotifyId);
 
     // Store in cache
     ctx?.trackCache.set(track.spotifyId, created.id);

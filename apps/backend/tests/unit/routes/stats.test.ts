@@ -344,41 +344,4 @@ describe('Stats API', () => {
             expect(callArgs.skip).toBe(25);
         });
     });
-
-    describe('GET /me/stats/mood', () => {
-        it('should return aggregated mood stats', async () => {
-            (redis.get as jest.Mock).mockResolvedValue(null);
-            (prisma.listeningEvent.findMany as jest.Mock).mockResolvedValue([
-                {
-                    playedAt: new Date('2025-01-01T12:00:00Z'),
-                    track: { audioFeatures: { valence: 0.8, energy: 0.6 } }
-                },
-                {
-                    playedAt: new Date('2025-01-01T13:00:00Z'),
-                    track: { audioFeatures: { valence: 0.4, energy: 0.8 } }
-                }
-            ]);
-
-            const response = await app.inject({
-                method: 'GET',
-                url: '/me/stats/mood',
-            });
-
-            expect(response.statusCode).toBe(200);
-            const body = response.json();
-
-            expect(body).toHaveLength(1); // One day
-            expect(body[0].date).toBe('2025-01-01');
-            expect(body[0].valence).toBe(0.6); // (0.8 + 0.4) / 2
-            expect(body[0].energy).toBe(0.7);  // (0.6 + 0.8) / 2
-            expect(body[0].count).toBe(2);
-
-            expect(redis.setex).toHaveBeenCalledWith(
-                'stats:mood:user-1',
-                300,
-                expect.any(String)
-            );
-        });
-    });
 });
-

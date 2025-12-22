@@ -63,7 +63,6 @@ model Track {
   artists         TrackArtist[]
   listeningEvents ListeningEvent[]
   userStats       UserTrackStats[]
-  audioFeatures   AudioFeatures?
   spotifyTopTracks SpotifyTopTrack[]
 
   @@index([spotifyId])
@@ -237,26 +236,7 @@ model MetadataRefreshLog {
   @@map("metadata_refresh_log")
 }
 
-model AudioFeatures {
-  trackId           String   @id @map("track_id")
-  acousticness      Float
-  danceability      Float
-  energy            Float
-  instrumentalness  Float
-  key               Int
-  liveness          Float
-  loudness          Float
-  mode              Int
-  speechiness       Float
-  tempo             Float
-  timeSignature     Int      @map("time_signature")
-  valence           Float
-  durationMs        Int      @map("duration_ms")
 
-  track             Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
-
-  @@map("audio_features")
-}
 
 model SpotifyTopTrack {
   id        String   @id @default(cuid())

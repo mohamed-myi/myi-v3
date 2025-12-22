@@ -3,7 +3,6 @@ import { checkDatabaseHealth } from '../lib/db';
 import { pingRedis } from '../lib/redis';
 import {
     isSyncWorkerRunning,
-    isAudioFeaturesWorkerRunning,
     isMetadataWorkerRunning,
     isTopStatsWorkerRunning,
 } from '@/workers/worker-status';
@@ -20,7 +19,6 @@ interface DetailedHealthResponse {
         redis: { status: CheckStatus; latencyMs?: number };
         workers: {
             sync: WorkerStatus;
-            audioFeatures: WorkerStatus;
             metadata: WorkerStatus;
             topStats: WorkerStatus;
         };
@@ -46,7 +44,6 @@ export async function healthRoutes(server: FastifyInstance) {
         // Check workers
         const workers = {
             sync: isSyncWorkerRunning() ? 'running' as const : 'stopped' as const,
-            audioFeatures: isAudioFeaturesWorkerRunning() ? 'running' as const : 'stopped' as const,
             metadata: isMetadataWorkerRunning() ? 'running' as const : 'stopped' as const,
             topStats: isTopStatsWorkerRunning() ? 'running' as const : 'stopped' as const,
         };

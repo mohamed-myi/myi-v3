@@ -10,6 +10,7 @@ import {
     getUserProfile,
 } from '../lib/spotify';
 import { syncUserQueue } from '../workers/queues';
+import { cacheAccessToken } from '../lib/token-manager';
 import { AUTH_RATE_LIMIT } from '../middleware/rate-limit';
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
@@ -124,6 +125,7 @@ export async function authRoutes(fastify: FastifyInstance) {
                         create: {
                             refreshToken: encryptedRefreshToken,
                             scopes: tokens.scope,
+                            lastRefreshAt: new Date(), // Explicit timestamp for fresh token
                         },
                     },
                     settings: {
@@ -177,9 +179,15 @@ export async function authRoutes(fastify: FastifyInstance) {
             reply.clearCookie('pkce_verifier', { path: '/' });
             reply.clearCookie('oauth_state', { path: '/' });
 
-            // Trigger first poll of recent tracks
-            fastify.log.info(`User ${user.id} logged in, triggering initial sync`);
-            await syncUserQueue.add(`sync-${user.id}`, { userId: user.id });
+            // Cache the initial access token to avoid immediate refresh
+            await cacheAccessToken(user.id, {
+                accessToken: tokens.access_token,
+                expiresIn: tokens.expires_in,
+            });
+
+            // Trigger first poll of recent tracks (delayed 5s for DB consistency)
+            fastify.log.info(`User ${user.id} logged in, triggering initial sync (delayed 5s)`);
+            await syncUserQueue.add(`sync-${user.id}`, { userId: user.id }, { delay: 5000 });
 
             return reply.redirect(`${FRONTEND_URL}/dashboard`);
         } catch (err) {

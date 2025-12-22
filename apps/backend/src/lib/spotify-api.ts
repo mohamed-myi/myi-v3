@@ -9,8 +9,6 @@ import type {
     SpotifyAlbum,
     SpotifyTracksBatchResponse,
     SpotifyAlbumsBatchResponse,
-    SpotifyAudioFeatures,
-    SpotifyAudioFeaturesBatchResponse,
 } from '../types/spotify';
 import {
     SpotifyApiError,
@@ -189,27 +187,4 @@ export async function getAlbumsBatch(
     const url = `${SPOTIFY_API_URL}/albums?ids=${albumIds.join(',')}`;
     const response = await fetchWithRetry<SpotifyAlbumsBatchResponse>(url, accessToken);
     return response.albums;
-}
-
-// Get audio features for a single track
-export async function getAudioFeatures(
-    accessToken: string,
-    trackId: string
-): Promise<SpotifyAudioFeatures> {
-    const url = `${SPOTIFY_API_URL}/audio-features/${trackId}`;
-    return fetchWithRetry<SpotifyAudioFeatures>(url, accessToken);
-}
-
-// Batch fetch audio features (max 100 per call)
-export async function getAudioFeaturesBatch(
-    accessToken: string,
-    trackIds: string[]
-): Promise<(SpotifyAudioFeatures | null)[]> {
-    if (trackIds.length === 0) return [];
-    if (trackIds.length > 100) {
-        throw new Error('Cannot fetch more than 100 audio features at once');
-    }
-    const url = `${SPOTIFY_API_URL}/audio-features?ids=${trackIds.join(',')}`;
-    const response = await fetchWithRetry<SpotifyAudioFeaturesBatchResponse>(url, accessToken);
-    return response.audio_features;
 }

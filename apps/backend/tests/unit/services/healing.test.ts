@@ -5,9 +5,6 @@
 process.env.REDIS_URL = 'redis://mock:6379';
 
 const mockPrisma = {
-    track: {
-        findMany: jest.fn(),
-    },
     artist: {
         findMany: jest.fn(),
     },
@@ -21,7 +18,6 @@ jest.mock('../../../src/lib/prisma', () => ({
 }));
 
 jest.mock('../../../src/lib/redis', () => ({
-    queueTrackForFeatures: jest.fn(),
     queueArtistForMetadata: jest.fn(),
 }));
 
@@ -33,40 +29,12 @@ jest.mock('../../../src/workers/top-stats-queue', () => ({
 
 // Import after mocks
 import { HealingService } from '../../../src/services/healing';
-import { queueTrackForFeatures, queueArtistForMetadata } from '../../../src/lib/redis';
+import { queueArtistForMetadata } from '../../../src/lib/redis';
 import { topStatsQueue } from '../../../src/workers/top-stats-queue';
 
 describe('HealingService', () => {
     beforeEach(() => {
         jest.clearAllMocks();
-    });
-
-    describe('healAudioFeatures', () => {
-        it('queues tracks with missing audio features', async () => {
-            mockPrisma.track.findMany.mockResolvedValue([
-                { spotifyId: 'track-1' },
-                { spotifyId: 'track-2' },
-            ]);
-
-            await HealingService.healAudioFeatures();
-
-            expect(mockPrisma.track.findMany).toHaveBeenCalledWith({
-                where: { audioFeatures: null },
-                select: { spotifyId: true },
-                take: 1000,
-            });
-            expect(queueTrackForFeatures).toHaveBeenCalledTimes(2);
-            expect(queueTrackForFeatures).toHaveBeenCalledWith('track-1');
-            expect(queueTrackForFeatures).toHaveBeenCalledWith('track-2');
-        });
-
-        it('does nothing if no tracks found', async () => {
-            mockPrisma.track.findMany.mockResolvedValue([]);
-
-            await HealingService.healAudioFeatures();
-
-            expect(queueTrackForFeatures).not.toHaveBeenCalled();
-        });
     });
 
     describe('healArtistMetadata', () => {
@@ -106,13 +74,11 @@ describe('HealingService', () => {
 
     describe('healAll', () => {
         it('calls all heal methods', async () => {
-            const spyFeatures = jest.spyOn(HealingService, 'healAudioFeatures').mockResolvedValue();
             const spyArtist = jest.spyOn(HealingService, 'healArtistMetadata').mockResolvedValue();
             const spyTopStats = jest.spyOn(HealingService, 'healTopStats').mockResolvedValue();
 
             await HealingService.healAll();
 
-            expect(spyFeatures).toHaveBeenCalled();
             expect(spyArtist).toHaveBeenCalled();
             expect(spyTopStats).toHaveBeenCalled();
         });

@@ -1,5 +1,5 @@
 import { prisma } from '../lib/prisma';
-import { queueArtistForMetadata, queueTrackForFeatures } from '../lib/redis';
+import { queueArtistForMetadata } from '../lib/redis';
 import { logger } from '../lib/logger';
 import { topStatsQueue } from '../workers/top-stats-queue';
 
@@ -10,36 +10,11 @@ export class HealingService {
         log.info('Starting self-healing process...');
 
         await Promise.all([
-            this.healAudioFeatures(),
             this.healArtistMetadata(),
             this.healTopStats(),
         ]);
 
         log.info('Self-healing process completed');
-    }
-
-    static async healAudioFeatures(): Promise<void> {
-        try {
-            // Find tracks that have no corresponding AudioFeatures record
-            // Limit to 1000 to prevent slamming the queue on every restart if huge gap
-            const orphans = await prisma.track.findMany({
-                where: {
-                    audioFeatures: null,
-                },
-                select: { spotifyId: true },
-                take: 1000,
-            });
-
-            if (orphans.length === 0) return;
-
-            log.warn({ count: orphans.length }, 'Found tracks with missing audio features. Queueing for repair...');
-
-            for (const track of orphans) {
-                await queueTrackForFeatures(track.spotifyId);
-            }
-        } catch (error) {
-            log.error({ error }, 'Failed to heal audio features');
-        }
     }
 
     static async healArtistMetadata(): Promise<void> {
@@ -97,3 +72,4 @@ export class HealingService {
         }
     }
 }
+

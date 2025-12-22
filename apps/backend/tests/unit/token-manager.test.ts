@@ -26,6 +26,21 @@ jest.mock('../../src/lib/encryption', () => ({
     encrypt: jest.fn((val: string) => `encrypted_${val}`),
 }));
 
+// Mock Redis for caching functionality
+const mockRedisGet = jest.fn();
+const mockRedisSetex = jest.fn();
+const mockRedisSet = jest.fn();
+const mockRedisDel = jest.fn();
+
+jest.mock('../../src/lib/redis', () => ({
+    redis: {
+        get: (...args: any[]) => mockRedisGet(...args),
+        setex: (...args: any[]) => mockRedisSetex(...args),
+        set: (...args: any[]) => mockRedisSet(...args),
+        del: (...args: any[]) => mockRedisDel(...args),
+    },
+}));
+
 import {
     getValidAccessToken,
     refreshUserToken,
@@ -40,17 +55,40 @@ import { decrypt, encrypt } from '../../src/lib/encryption';
 describe('token-manager', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        // Reset Redis mocks
+        mockRedisGet.mockReset();
+        mockRedisSetex.mockReset();
+        mockRedisSet.mockReset();
+        mockRedisDel.mockReset();
+        // Default: cache miss, mutex acquired
+        mockRedisGet.mockResolvedValue(null);
+        mockRedisSet.mockResolvedValue('OK');
+        mockRedisSetex.mockResolvedValue('OK');
+        mockRedisDel.mockResolvedValue(1);
     });
 
     describe('getValidAccessToken', () => {
-        test('returns null when no auth record exists', async () => {
+        test('returns cached token without refreshing', async () => {
+            const cachedToken = { accessToken: 'cached_token', expiresIn: 3600 };
+            mockRedisGet.mockResolvedValue(JSON.stringify(cachedToken));
+
+            const result = await getValidAccessToken('user-123');
+            expect(result).toEqual(cachedToken);
+            // Should not call prisma or refresh
+            expect(prisma.spotifyAuth.findUnique).not.toHaveBeenCalled();
+            expect(refreshAccessToken).not.toHaveBeenCalled();
+        });
+
+        test('returns null when no auth record exists (cache miss)', async () => {
+            mockRedisGet.mockResolvedValue(null);
             (prisma.spotifyAuth.findUnique as jest.Mock).mockResolvedValue(null);
 
             const result = await getValidAccessToken('user-123');
             expect(result).toBeNull();
         });
 
-        test('returns null when auth is invalid', async () => {
+        test('returns null when auth is invalid (cache miss)', async () => {
+            mockRedisGet.mockResolvedValue(null);
             (prisma.spotifyAuth.findUnique as jest.Mock).mockResolvedValue({
                 userId: 'user-123',
                 isValid: false,
@@ -62,7 +100,10 @@ describe('token-manager', () => {
             expect(result).toBeNull();
         });
 
-        test('refreshes token when auth is valid', async () => {
+        test('refreshes and caches token when cache miss and auth is valid', async () => {
+            mockRedisGet.mockResolvedValue(null);
+            mockRedisSet.mockResolvedValue('OK'); // Mutex acquired
+
             (prisma.spotifyAuth.findUnique as jest.Mock).mockResolvedValue({
                 userId: 'user-123',
                 isValid: true,
@@ -81,6 +122,10 @@ describe('token-manager', () => {
                 accessToken: 'new_access_token',
                 expiresIn: 3600,
             });
+            // Verify token was cached
+            expect(mockRedisSetex).toHaveBeenCalled();
+            // Verify mutex was released
+            expect(mockRedisDel).toHaveBeenCalled();
         });
     });
 

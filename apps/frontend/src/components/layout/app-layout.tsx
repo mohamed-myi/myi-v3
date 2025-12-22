@@ -75,7 +75,6 @@ function AppLayoutInner({ children }: AppLayoutProps) {
     const navLinks = [
         { href: "/dashboard", label: "Browse" },
         { href: "/dashboard/history", label: "History" },
-        { href: "/dashboard/charts", label: "Stats" },
     ];
 
     return (
