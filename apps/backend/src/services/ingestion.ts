@@ -257,6 +257,12 @@ export async function insertListeningEventsWithIds(
                 results.push({ status: 'skipped', ...baseResult });
             }
         } catch (error) {
+            // Partition errors are fatal - indicates missing partition setup
+            const isPartitionError = error instanceof Error &&
+                error.message.includes('no partition of relation');
+            if (isPartitionError) {
+                throw error;
+            }
             console.error('Failed to insert event:', error);
             summary.errors++;
         }

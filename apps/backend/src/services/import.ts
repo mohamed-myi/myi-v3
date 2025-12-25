@@ -7,6 +7,7 @@ import { parseEndsongRecord } from '../lib/import-parser';
 import { updateStatsForEvents } from './aggregation';
 import type { ParsedImportEvent, ImportProgress } from '../types/import';
 import type { InsertResultWithIds } from '../types/ingestion';
+import { ensurePartitionsForDates } from '../lib/partitions';
 
 const BATCH_SIZE = 100;
 const DB_UPDATE_INTERVAL = 1000;
@@ -139,6 +140,9 @@ async function insertImportBatch(
     events: ParsedImportEvent[],
     userTimezone: string
 ): Promise<{ added: number; skipped: number }> {
+    // Ensure partitions exist for all event dates before inserting
+    await ensurePartitionsForDates(events.map(e => e.playedAt));
+
     const trackIdMap = await batchUpsertTracks(events);
 
     const eventKeys = events.map(e => ({

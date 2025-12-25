@@ -6,6 +6,7 @@ import { getRecentlyPlayed } from '../lib/spotify-api';
 import { insertListeningEventsWithIds } from '../services/ingestion';
 import { updateStatsForEvents } from '../services/aggregation';
 import { parseRecentlyPlayed } from '../lib/spotify-parser';
+import { ensurePartitionsForDates } from '../lib/partitions';
 import {
     SpotifyUnauthenticatedError,
     SpotifyForbiddenError,
@@ -77,6 +78,9 @@ async function processSync(job: Job<SyncUserJob>): Promise<SyncSummary> {
         }
 
         const events = parseRecentlyPlayed(response);
+
+        // Ensure partitions exist for all event dates before inserting
+        await ensurePartitionsForDates(events.map(e => e.playedAt));
 
         const ctx = createSyncContext();
         const { summary, results } = await insertListeningEventsWithIds(userId, events, ctx);
