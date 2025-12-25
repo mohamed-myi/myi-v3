@@ -27,9 +27,9 @@ export { CircuitBreakerOpenError };
 export type TimeRange = 'short_term' | 'medium_term' | 'long_term';
 
 export interface RecentlyPlayedOptions {
-    limit?: number,
-    after?: number,
-    before?: number,
+    limit?: number;
+    after?: number;
+    before?: number;
 }
 
 function getServiceKey(url: string): string {

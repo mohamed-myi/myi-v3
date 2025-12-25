@@ -162,15 +162,15 @@ async function insertImportBatch(
     );
 
     const toCreate: Array<{
-        userId: string,
-        trackId: string,
-        playedAt: Date,
-        msPlayed: number,
-        isEstimated: boolean,
-        source: Source,
-        isSkip: boolean,
+        userId: string;
+        trackId: string;
+        playedAt: Date;
+        msPlayed: number;
+        isEstimated: boolean;
+        source: Source;
+        isSkip: boolean;
     }> = [];
-    const toUpdate: Array<{ trackId: string, playedAt: Date, msPlayed: number, isSkip: boolean }> = [];
+    const toUpdate: Array<{ trackId: string; playedAt: Date; msPlayed: number; isSkip: boolean }> = [];
     const aggregationEvents: InsertResultWithIds[] = [];
 
     for (const event of events) {
