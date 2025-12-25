@@ -1,6 +1,3 @@
-// Metadata Worker Tests
-// Testing the core processing logic for artist metadata enrichment
-
 process.env.REDIS_URL = 'redis://mock:6379';
 
 jest.mock('../../../src/lib/redis', () => ({
@@ -38,9 +35,6 @@ import { popArtistsForMetadata, queueArtistForMetadata } from '../../../src/lib/
 import { getValidAccessToken } from '../../../src/lib/token-manager';
 import { getArtistsBatch } from '../../../src/lib/spotify-api';
 
-/**
- * Core processing logic extracted from the infinite loop.
- */
 async function processMetadataBatch(): Promise<'no_artists' | 'no_token' | 'processed'> {
     const artistIds = await (popArtistsForMetadata as jest.Mock)(50);
     if (artistIds.length === 0) {
@@ -146,8 +140,45 @@ describe('Metadata Worker', () => {
             const result = await processMetadataBatch();
 
             expect(result).toBe('processed');
-            // Transaction should include update with null imageUrl
             expect(prisma.$transaction).toHaveBeenCalled();
         });
     });
+
+    describe('stale data handling', () => {
+        it('identifies artists with missing images for refresh', async () => {
+            const staleMockData = [
+                { spotifyId: 'stale-artist-1', imageUrl: null },
+                { spotifyId: 'stale-artist-2', imageUrl: null },
+            ];
+            for (const artist of staleMockData) {
+                await (queueArtistForMetadata as jest.Mock)(artist.spotifyId);
+            }
+
+            expect(queueArtistForMetadata).toHaveBeenCalledWith('stale-artist-1');
+            expect(queueArtistForMetadata).toHaveBeenCalledWith('stale-artist-2');
+        });
+
+        it('updates artist with fresh metadata from Spotify API', async () => {
+            (popArtistsForMetadata as jest.Mock).mockResolvedValue(['stale-artist']);
+            (prisma.spotifyAuth.findFirst as jest.Mock).mockResolvedValue({ userId: 'user-1' });
+            (getValidAccessToken as jest.Mock).mockResolvedValue({ accessToken: 'token' });
+            (getArtistsBatch as jest.Mock).mockResolvedValue([
+                {
+                    id: 'stale-artist',
+                    name: 'Refreshed Artist',
+                    images: [{ url: 'https://new-image.jpg' }],
+                    genres: ['indie', 'alternative'],
+                },
+            ]);
+            (prisma.$transaction as jest.Mock).mockImplementation(async (updates) => {
+                return updates;
+            });
+
+            const result = await processMetadataBatch();
+
+            expect(result).toBe('processed');
+            expect(getArtistsBatch).toHaveBeenCalledWith('token', ['stale-artist']);
+        });
+    });
 });
+

@@ -1,46 +1,40 @@
-import { Worker } from 'bullmq';
+import { Worker, UnrecoverableError } from 'bullmq';
 import { redis } from '../lib/redis';
 import { prisma } from '../lib/prisma';
 import { workerLoggers } from '../lib/logger';
 import { setTopStatsWorkerRunning } from './worker-status';
 import { topStatsQueue, TopStatsJobData } from './top-stats-queue';
 import { processUserTopStats } from '../services/top-stats-service';
+import { recordTokenFailure } from '../lib/token-manager';
+import {
+    SpotifyRateLimitError,
+    SpotifyUnauthenticatedError,
+    SpotifyForbiddenError,
+    isRetryableError,
+} from '../lib/spotify-errors';
 
 const log = workerLoggers.topStats;
 
-// Job timeout: 30 seconds per user
-const JOB_TIMEOUT_MS = 30000;
-
-/**
- * Extract Retry-After from error message (if 429 response)
- */
-function extractRetryAfter(error: Error): number | null {
-    const match = error.message.match(/retry.?after[:\s]*(\d+)/i);
-    return match ? parseInt(match[1], 10) : null;
-}
-
-// BullMQ worker for processing top-stats jobs.
+const JOB_TIMEOUT_MS = 60000;
 export const topStatsWorker = new Worker<TopStatsJobData>(
     'top-stats',
     async (job) => {
         const { userId, priority } = job.data;
-        log.info({ userId, priority, jobId: job.id }, 'Processing top stats job');
+        const jobId = job.id || `unknown-${Date.now()}`;
+        log.info({ userId, priority, jobId }, 'Processing top stats job');
 
         const startTime = Date.now();
 
         try {
-            // Set up timeout
             const timeoutPromise = new Promise<never>((_, reject) => {
                 setTimeout(() => reject(new Error('Job timeout')), JOB_TIMEOUT_MS);
             });
 
-            // Race between processing and timeout
             await Promise.race([
-                processUserTopStats(userId),
+                processUserTopStats(userId, jobId),
                 timeoutPromise
             ]);
 
-            // Update refresh timestamp on success
             await prisma.user.update({
                 where: { id: userId },
                 data: { topStatsRefreshedAt: new Date() }
@@ -50,17 +44,45 @@ export const topStatsWorker = new Worker<TopStatsJobData>(
             log.info({ userId, elapsedMs: elapsed }, 'Top stats refresh completed');
 
         } catch (error) {
+            if (error instanceof SpotifyUnauthenticatedError) {
+                log.warn({ userId }, 'Token expired during top stats, recording failure');
+                const invalidated = await recordTokenFailure(userId, 'spotify_401_top_stats');
+                if (invalidated) {
+                    throw new UnrecoverableError(`Token invalidated for user ${userId}, needs re-auth`);
+                }
+                throw error;
+            }
+
+            if (error instanceof SpotifyForbiddenError) {
+                log.error({ userId }, 'Forbidden error - user may have revoked access');
+                await recordTokenFailure(userId, 'spotify_403_forbidden');
+                throw new UnrecoverableError('User revoked access or scope missing');
+            }
+
+            if (error instanceof SpotifyRateLimitError) {
+                const delayMs = (error.retryAfterSeconds * 1000) + Math.floor(Math.random() * 5000);
+                log.warn({ userId, retryAfter: error.retryAfterSeconds, delayMs }, 'Rate limited, pausing queue');
+
+                await topStatsQueue.pause();
+                setTimeout(async () => {
+                    await topStatsQueue.resume();
+                    log.info('Queue resumed after rate limit');
+                }, error.retryAfterSeconds * 1000);
+
+                await job.moveToDelayed(Date.now() + delayMs, job.token);
+                return;
+            }
+
             log.error({ userId, error }, 'Top stats job failed');
-            throw error;  // Let BullMQ handle retries
+            throw error;
         }
     },
     {
         connection: redis,
-        concurrency: 3,  // Process 3 users at a time
+        concurrency: 3,
     }
 );
 
-// Handle worker events
 topStatsWorker.on('completed', (job) => {
     log.debug({ jobId: job.id, userId: job.data.userId }, 'Top stats job completed');
 });
@@ -69,29 +91,25 @@ topStatsWorker.on('failed', async (job, error) => {
     if (!job) return;
 
     const { userId, priority } = job.data;
-    log.warn({ userId, priority, error: error.message, attempts: job.attemptsMade }, 'Top stats job failed');
+    const isRetryable = isRetryableError(error);
 
-    // Handle 429 rate limit: pause entire queue
-    if (error.message.includes('429') || error.message.includes('rate limit')) {
-        const retryAfter = extractRetryAfter(error) || 60;
-        log.warn({ retryAfter }, 'Rate limited, pausing queue');
-
-        await topStatsQueue.pause();
-        setTimeout(async () => {
-            await topStatsQueue.resume();
-            log.info('Queue resumed after rate limit');
-        }, retryAfter * 1000);
-    }
+    log.warn({
+        userId,
+        priority,
+        error: error.message,
+        attempts: job.attemptsMade,
+        isRetryable,
+    }, 'Top stats job failed');
 });
 
 topStatsWorker.on('error', (error) => {
     log.error({ error }, 'Top stats worker error');
 });
 
-// Track worker status for health checks
 setTopStatsWorkerRunning(true);
 
 export async function closeTopStatsWorker(): Promise<void> {
     setTopStatsWorkerRunning(false);
     await topStatsWorker.close();
 }
+

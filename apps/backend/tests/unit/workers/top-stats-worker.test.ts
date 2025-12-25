@@ -1,6 +1,3 @@
-// Top Stats Worker Tests
-// Testing the core processing logic for top tracks/artists sync
-
 process.env.REDIS_URL = 'redis://mock:6379';
 
 jest.mock('../../../src/lib/redis', () => ({
@@ -48,7 +45,6 @@ import { getValidAccessToken } from '../../../src/lib/token-manager';
 import { getTopTracks, getTopArtists } from '../../../src/lib/spotify-api';
 import { upsertTrack } from '../../../src/services/ingestion';
 
-// Core processing logic for a single user's top stats.
 async function processUserTopStats(userId: string): Promise<'no_token' | 'processed'> {
     const tokenResult = await (getValidAccessToken as jest.Mock)(userId);
     if (!tokenResult) {
@@ -56,10 +52,8 @@ async function processUserTopStats(userId: string): Promise<'no_token' | 'proces
     }
     const accessToken = tokenResult.accessToken;
 
-    // Process one term for simplicity in tests
     const term = 'short_term';
 
-    // Top Tracks
     const topTracksRes = await (getTopTracks as jest.Mock)(accessToken, term, 50);
 
     for (let i = 0; i < topTracksRes.items.length; i++) {
@@ -89,7 +83,6 @@ async function processUserTopStats(userId: string): Promise<'no_token' | 'proces
         });
     }
 
-    // Top Artists
     const topArtistsRes = await (getTopArtists as jest.Mock)(accessToken, term, 50);
 
     for (let i = 0; i < topArtistsRes.items.length; i++) {
@@ -203,4 +196,70 @@ describe('Top Stats Worker', () => {
             expect(prisma.spotifyTopArtist.upsert).not.toHaveBeenCalled();
         });
     });
+
+    describe('ranking integrity', () => {
+        it('uses upsert to overwrite rankings without duplicates', async () => {
+            (getValidAccessToken as jest.Mock).mockResolvedValue({ accessToken: 'token' });
+            (getTopTracks as jest.Mock).mockResolvedValue({
+                items: [{
+                    id: 'track-1',
+                    name: 'New #1 Song',
+                    duration_ms: 200000,
+                    preview_url: null,
+                    album: {
+                        id: 'album-1',
+                        name: 'Album',
+                        images: [],
+                        release_date: '2024-01-01',
+                    },
+                    artists: [{ id: 'artist-1', name: 'Artist' }],
+                }],
+            });
+            (getTopArtists as jest.Mock).mockResolvedValue({ items: [] });
+            (upsertTrack as jest.Mock).mockResolvedValue({ trackId: 'new-track-uuid' });
+            (prisma.spotifyTopTrack.upsert as jest.Mock).mockResolvedValue({});
+
+            await processUserTopStats('user-1');
+
+            expect(prisma.spotifyTopTrack.upsert).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    where: {
+                        userId_term_rank: {
+                            userId: 'user-1',
+                            term: 'short_term',
+                            rank: 1,
+                        },
+                    },
+                    update: { trackId: 'new-track-uuid' },
+                })
+            );
+        });
+
+        it('assigns correct rank to each track', async () => {
+            (getValidAccessToken as jest.Mock).mockResolvedValue({ accessToken: 'token' });
+            (getTopTracks as jest.Mock).mockResolvedValue({
+                items: [
+                    { id: 't1', name: 'Track 1', duration_ms: 100, preview_url: null, album: { id: 'a1', name: 'A', images: [], release_date: '2024' }, artists: [{ id: 'ar1', name: 'Ar' }] },
+                    { id: 't2', name: 'Track 2', duration_ms: 100, preview_url: null, album: { id: 'a1', name: 'A', images: [], release_date: '2024' }, artists: [{ id: 'ar1', name: 'Ar' }] },
+                ],
+            });
+            (getTopArtists as jest.Mock).mockResolvedValue({ items: [] });
+            (upsertTrack as jest.Mock).mockResolvedValue({ trackId: 'track-uuid' });
+            (prisma.spotifyTopTrack.upsert as jest.Mock).mockResolvedValue({});
+
+            await processUserTopStats('user-1');
+
+            expect(prisma.spotifyTopTrack.upsert).toHaveBeenNthCalledWith(1,
+                expect.objectContaining({
+                    where: { userId_term_rank: expect.objectContaining({ rank: 1 }) },
+                })
+            );
+            expect(prisma.spotifyTopTrack.upsert).toHaveBeenNthCalledWith(2,
+                expect.objectContaining({
+                    where: { userId_term_rank: expect.objectContaining({ rank: 2 }) },
+                })
+            );
+        });
+    });
 });
+

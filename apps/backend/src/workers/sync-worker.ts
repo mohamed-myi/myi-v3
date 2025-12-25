@@ -22,8 +22,8 @@ const log = workerLoggers.sync;
 
 export interface SyncUserJob {
     userId: string;
-    skipCooldown?: boolean;  // Bypass 5-min cooldown for follow-up syncs
-    iteration?: number;      // Track follow-up iterations to prevent runaway
+    skipCooldown?: boolean;
+    iteration?: number;
 }
 
 const SYNC_COOLDOWN_MS = 5 * 60 * 1000;
@@ -32,7 +32,6 @@ const MAX_FOLLOWUP_ITERATIONS = 5;  // Dead man's switch: max follow-ups per cro
 async function processSync(job: Job<SyncUserJob>): Promise<SyncSummary> {
     const { userId, skipCooldown, iteration = 0 } = job.data;
 
-    // Dead man's switch: stop if max iterations reached
     if (iteration >= MAX_FOLLOWUP_ITERATIONS) {
         await job.log(`Max iterations (${MAX_FOLLOWUP_ITERATIONS}) reached, stopping until next cron`);
         return { added: 0, skipped: 0, updated: 0, errors: 0 };
@@ -46,7 +45,6 @@ async function processSync(job: Job<SyncUserJob>): Promise<SyncSummary> {
     const userTimezone = user?.settings?.timezone ?? 'UTC';
     const lastSyncTimestamp = user?.lastIngestedAt?.getTime();
 
-    // Cooldown check (skipped for follow-up syncs)
     if (!skipCooldown && user?.lastIngestedAt) {
         const msSinceLastSync = Date.now() - user.lastIngestedAt.getTime();
         if (msSinceLastSync < SYNC_COOLDOWN_MS) {
@@ -57,7 +55,6 @@ async function processSync(job: Job<SyncUserJob>): Promise<SyncSummary> {
 
     const tokenResult = await getValidAccessToken(userId);
     if (!tokenResult) {
-        // Token already invalid or refresh failed
         throw new Error(`No valid token for user ${userId}`);
     }
 
@@ -75,14 +72,12 @@ async function processSync(job: Job<SyncUserJob>): Promise<SyncSummary> {
 
         if (response.items.length === 0) {
             await job.log('No new plays found');
-            // Reset failures on any successful API call
             await resetTokenFailures(userId);
             return { added: 0, skipped: 0, updated: 0, errors: 0 };
         }
 
         const events = parseRecentlyPlayed(response);
 
-        // Create per-job cache context to reduce duplicate DB lookups
         const ctx = createSyncContext();
         const { summary, results } = await insertListeningEventsWithIds(userId, events, ctx);
         await job.log(
@@ -91,6 +86,12 @@ async function processSync(job: Job<SyncUserJob>): Promise<SyncSummary> {
         );
 
         const addedEvents = results.filter(r => r.status === 'added');
+
+        // Calculate cursor from max timestamp of successfully added events only
+        const maxAddedTimestamp = addedEvents.length > 0
+            ? new Date(Math.max(...addedEvents.map(e => e.playedAt.getTime())))
+            : null;
+
         if (addedEvents.length > 0) {
             const aggregationInputs = addedEvents.map(r => ({
                 trackId: r.trackId,
@@ -98,34 +99,33 @@ async function processSync(job: Job<SyncUserJob>): Promise<SyncSummary> {
                 playedAt: r.playedAt,
                 msPlayed: r.msPlayed,
             }));
+
             await updateStatsForEvents(userId, aggregationInputs, userTimezone);
             await job.log(`Aggregated stats for ${addedEvents.length} events`);
-        }
 
-        const latestPlay = events[0]?.playedAt;
-        if (latestPlay) {
             await prisma.user.update({
                 where: { id: userId },
-                data: { lastIngestedAt: latestPlay },
+                data: { lastIngestedAt: maxAddedTimestamp },
             });
         }
 
-        // Reset failure count on successful sync
         await resetTokenFailures(userId);
 
-        // Adaptive re-queue: if it hit the 50-item limit and made temporal progress
         const hitLimit = response.items.length === 50;
         const oldestTrackInBatch = events[events.length - 1]?.playedAt;
         const madeTemporalProgress = oldestTrackInBatch &&
             (!lastSyncTimestamp || oldestTrackInBatch.getTime() > lastSyncTimestamp);
 
         if (hitLimit && madeTemporalProgress) {
-            // Jittered delay (1-6 seconds) to prevent collapse
             const jitteredDelay = 1000 + Math.floor(Math.random() * 5000);
             await syncUserQueue.add(
                 `sync-${userId}-followup-${iteration + 1}`,
                 { userId, skipCooldown: true, iteration: iteration + 1 },
-                { priority: 1, delay: jitteredDelay }
+                {
+                    jobId: `sync-${userId}-${iteration + 1}`,
+                    priority: 1,
+                    delay: jitteredDelay,
+                }
             );
             await job.log(
                 `Hit 50-item limit with temporal progress, queued follow-up ` +
@@ -136,16 +136,13 @@ async function processSync(job: Job<SyncUserJob>): Promise<SyncSummary> {
         return summary;
     } catch (error) {
         if (error instanceof SpotifyUnauthenticatedError) {
-            // Record failure instead of immediate invalidation
             const invalidated = await recordTokenFailure(userId, 'spotify_401_unauthenticated');
             if (invalidated) {
                 throw new Error(`Token invalidated for user ${userId} after repeated 401 errors`);
             }
-            // Will retry via BullMQ
             throw error;
         }
         if (error instanceof SpotifyForbiddenError) {
-            // Record failure instead of immediate invalidation
             const invalidated = await recordTokenFailure(userId, 'spotify_403_forbidden');
             if (invalidated) {
                 throw new Error(`Token invalidated for user ${userId} after repeated 403 errors`);
@@ -188,7 +185,6 @@ syncWorker.on('failed', (job, error) => {
     }
 });
 
-// Track worker status for health checks
 setSyncWorkerRunning(true);
 
 export async function closeSyncWorker(): Promise<void> {
