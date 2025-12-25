@@ -6,6 +6,33 @@ datasource db {
   provider = "postgresql"
 }
 
+// ENUMS - Type Safety Guards
+
+enum Source {
+  API
+  IMPORT
+  BACKFILL
+}
+
+enum Term {
+  SHORT_TERM
+  MEDIUM_TERM
+  LONG_TERM
+}
+
+enum BucketType {
+  DAY
+  WEEK
+  MONTH
+}
+
+enum JobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
 // USER & AUTH
 
 model User {
@@ -19,6 +46,10 @@ model User {
   lastIngestedAt  DateTime? @map("last_ingested_at")
   lastLoginAt     DateTime? @map("last_login_at")
   topStatsRefreshedAt DateTime? @map("top_stats_refreshed_at")
+  
+  // Denormalized stats for O(1) queries (updated via atomic increments)
+  totalPlayCount   Int    @default(0) @map("total_play_count")
+  totalListeningMs BigInt @default(0) @map("total_listening_ms")
 
   auth            SpotifyAuth?
   settings        UserSettings?
@@ -49,7 +80,7 @@ model SpotifyAuth {
   @@map("spotify_auth")
 }
 
-// MUSIC CATALOG (Global)
+// MUSIC CATALOG (Global, Shared Across Users)
 
 model Track {
   id              String   @id @default(cuid())
@@ -66,6 +97,7 @@ model Track {
   spotifyTopTracks SpotifyTopTrack[]
 
   @@index([spotifyId])
+  @@index([albumId]) // FK index: "Find all tracks in Album X"
   @@map("tracks")
 }
 
@@ -81,6 +113,7 @@ model Artist {
   spotifyTopArtists SpotifyTopArtist[]
 
   @@index([spotifyId])
+  @@index([genres], type: Gin) // Fast array containment queries
   @@map("artists")
 }
 
@@ -105,32 +138,31 @@ model TrackArtist {
   artist          Artist   @relation(fields: [artistId], references: [id], onDelete: Cascade)
 
   @@id([trackId, artistId])
+  @@index([artistId]) // FK index: "Find all tracks for Artist X"
   @@map("track_artists")
 }
 
-// RAW LISTENING EVENTS (Source of Truth)
-
 model ListeningEvent {
-  id              String   @id @default(cuid())
+  id              String   @default(cuid()) // Will be replaced with UUID v7 in app layer
   userId          String   @map("user_id")
   trackId         String   @map("track_id")
-  playedAt        DateTime @map("played_at")
+  playedAt        DateTime @map("played_at") // Cast to TIMESTAMPTZ in post-migration
   msPlayed        Int      @map("ms_played")
   isEstimated     Boolean  @default(true) @map("is_estimated")
   isSkip          Boolean  @default(false) @map("is_skip")
-  source          String   @default("api")
+  source          Source   @default(API)
   createdAt       DateTime @default(now()) @map("created_at")
 
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   track           Track    @relation(fields: [trackId], references: [id])
 
+  @@id([id, playedAt]) // Composite PK enables partitioning by playedAt
   @@unique([userId, trackId, playedAt])
   @@index([userId, playedAt(sort: Desc)])
   @@index([userId, createdAt(sort: Desc)])
+  @@index([trackId]) // FK index for cascade deletes
   @@map("listening_events")
 }
-
-// AGGREGATED STATS (Read-Optimized)
 
 model UserTrackStats {
   userId          String   @map("user_id")
@@ -144,6 +176,7 @@ model UserTrackStats {
 
   @@id([userId, trackId])
   @@index([userId, playCount(sort: Desc)])
+  @@index([trackId]) // FK index for cascade deletes
   @@map("user_track_stats")
 }
 
@@ -158,18 +191,19 @@ model UserArtistStats {
 
   @@id([userId, artistId])
   @@index([userId, playCount(sort: Desc)])
+  @@index([artistId]) // FK index for cascade deletes
   @@map("user_artist_stats")
 }
 
 model UserTimeBucketStats {
-  userId          String   @map("user_id")
-  bucketType      String   @map("bucket_type")
-  bucketDate      DateTime @map("bucket_date")
-  playCount       Int      @default(0) @map("play_count")
-  totalMs         BigInt   @default(0) @map("total_ms")
-  uniqueTracks    Int      @default(0) @map("unique_tracks")
+  userId          String     @map("user_id")
+  bucketType      BucketType @map("bucket_type")
+  bucketDate      DateTime   @map("bucket_date")
+  playCount       Int        @default(0) @map("play_count")
+  totalMs         BigInt     @default(0) @map("total_ms")
+  uniqueTracks    Int        @default(0) @map("unique_tracks")
 
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([userId, bucketType, bucketDate])
   @@index([userId, bucketType, bucketDate(sort: Desc)])
@@ -188,21 +222,19 @@ model UserHourStats {
   @@map("user_hour_stats")
 }
 
-// APP-SPECIFIC TABLES
-
 model ImportJob {
-  id              String   @id @default(cuid())
-  userId          String   @map("user_id")
-  fileName        String   @map("file_name")
-  status          String   @default("pending")
-  totalEvents     Int      @default(0) @map("total_events")
-  processedEvents Int      @default(0) @map("processed_events")
-  errorMessage    String?  @map("error_message")
+  id              String    @id @default(cuid())
+  userId          String    @map("user_id")
+  fileName        String    @map("file_name")
+  status          JobStatus @default(PENDING)
+  totalEvents     Int       @default(0) @map("total_events")
+  processedEvents Int       @default(0) @map("processed_events")
+  errorMessage    String?   @map("error_message")
   startedAt       DateTime? @map("started_at")
   completedAt     DateTime? @map("completed_at")
-  createdAt       DateTime @default(now()) @map("created_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
 
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt(sort: Desc)])
   @@map("import_jobs")
@@ -237,13 +269,12 @@ model MetadataRefreshLog {
 }
 
 
-
 model SpotifyTopTrack {
   id        String   @id @default(cuid())
   userId    String   @map("user_id")
   trackId   String   @map("track_id")
-  term      String   // 'short_term', 'medium_term', 'long_term'
-  rank      Int      // 1-50
+  term      Term
+  rank      Int
   updatedAt DateTime @updatedAt @map("updated_at")
 
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -251,6 +282,7 @@ model SpotifyTopTrack {
 
   @@unique([userId, term, rank])
   @@unique([userId, term, trackId])
+  @@index([trackId]) // FK index for cascade deletes
   @@map("spotify_top_tracks")
 }
 
@@ -258,8 +290,8 @@ model SpotifyTopArtist {
   id        String   @id @default(cuid())
   userId    String   @map("user_id")
   artistId  String   @map("artist_id")
-  term      String   // 'short_term', 'medium_term', 'long_term'
-  rank      Int      // 1-50
+  term      Term
+  rank      Int
   updatedAt DateTime @updatedAt @map("updated_at")
 
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -267,5 +299,6 @@ model SpotifyTopArtist {
 
   @@unique([userId, term, rank])
   @@unique([userId, term, artistId])
+  @@index([artistId]) // FK index for cascade deletes
   @@map("spotify_top_artists")
 }
