@@ -3,8 +3,7 @@ import { z } from 'zod';
 import { config } from 'dotenv';
 import { resolve } from 'path';
 
-// Load .env from project root
-// This ensures env vars are present before validation
+// Load .env from project root to ensure they're present before validation
 config({ path: resolve(__dirname, '../../../.env') });
 
 const envSchema = z.object({
@@ -16,6 +15,11 @@ const envSchema = z.object({
     SPOTIFY_CLIENT_ID: z.string().min(1),
     SPOTIFY_CLIENT_SECRET: z.string().min(1),
     ENCRYPTION_KEY: z.string().length(64, 'ENCRYPTION_KEY must be 64 hex characters (32 bytes)'),
+
+    // Circuit Breaker Configurations
+    SPOTIFY_CB_THRESHOLD: z.string().default('5').transform(Number),
+    SPOTIFY_CB_RESET_TIMEOUT: z.string().default('30000').transform(Number),
+    SPOTIFY_CB_WINDOW_DURATION: z.string().default('60000').transform(Number),
 });
 
 const _env = envSchema.safeParse(process.env);
@@ -28,5 +32,4 @@ if (!_env.success) {
 
 export const env = _env.data;
 
-// Type inference
 export type Env = z.infer<typeof envSchema>;
