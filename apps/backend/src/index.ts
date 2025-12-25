@@ -21,7 +21,6 @@ import { closeSyncWorker } from './workers/sync-worker';
 import { generateRequestId, logger } from './lib/logger';
 import { globalErrorHandler } from './lib/error-handler';
 
-// CORS origins: production + local development
 const CORS_ORIGINS = process.env.NODE_ENV === 'production'
   ? ['https://myi-v3-frontend.vercel.app']
   : ['http://127.0.0.1:3000', 'http://localhost:3000', 'https://myi-v3-frontend.vercel.app'];
@@ -34,13 +33,17 @@ export const build = async () => {
     genReqId: () => generateRequestId(),
   });
 
-  // Security headers (before other plugins)
-  await server.register(helmet, {
-    contentSecurityPolicy: false, // Disable CSP for API (no HTML served)
-    crossOriginResourcePolicy: { policy: 'cross-origin' }, // Allow CORS
+  server.setReplySerializer((payload) => {
+    return JSON.stringify(payload, (_, value) =>
+      typeof value === 'bigint' ? value.toString() : value
+    );
   });
 
-  // CORS configuration
+  await server.register(helmet, {
+    contentSecurityPolicy: false,
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  });
+
   await server.register(cors, {
     origin: CORS_ORIGINS,
     credentials: true,
@@ -52,25 +55,20 @@ export const build = async () => {
   await server.register(cookie);
   await server.register(multipart, {
     limits: {
-      fileSize: 100 * 1024 * 1024, // 100MB Limit
+      fileSize: 100 * 1024 * 1024,
     }
   });
 
-  // Swagger Documentation
   await server.register(require('@fastify/swagger'), require('./lib/swagger').swaggerOptions);
   await server.register(require('@fastify/swagger-ui'), require('./lib/swagger').swaggerUiOptions);
 
 
-  // Rate limiting (before routes, after auth context is available)
   await registerRateLimiting(server);
 
-  // Auth middleware for protected routes
   server.addHook('preHandler', authMiddleware);
 
-  // Global error handler
   server.setErrorHandler(globalErrorHandler);
 
-  // Register routes
   await server.register(authRoutes);
   await server.register(cronRoutes);
   await server.register(importRoutes);
@@ -87,7 +85,6 @@ import { metadataWorker } from './workers/metadata-worker';
 import { topStatsWorker, closeTopStatsWorker } from './workers/top-stats-worker';
 import { HealingService } from './services/healing';
 
-// Start server if main module
 if (require.main === module) {
   const start = async () => {
     try {
@@ -97,11 +94,8 @@ if (require.main === module) {
 
       logger.info('Server started, sync worker running');
 
-      // Start background workers
-      // In a real production setup, these would likely be processes/containers but I am running a free option.
       metadataWorker().catch(err => logger.error({ error: err }, 'Metadata Worker failed'));
 
-      // Self-Healing
       HealingService.healAll().catch(err => logger.error({ error: err }, 'Healing Service failed'));
 
       const shutdown = async () => {
