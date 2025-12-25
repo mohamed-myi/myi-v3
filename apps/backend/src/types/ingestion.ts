@@ -1,59 +1,59 @@
-// Data contracts for the ingestion pipeline
+import { Source } from '@prisma/client';
+
+export interface EmbeddedAlbum {
+    spotifyId: string,
+    name: string,
+    imageUrl: string | null,
+    releaseDate: string | null,
+}
+
+export interface EmbeddedArtist {
+    spotifyId: string,
+    name: string,
+}
+
+export interface EmbeddedTrack {
+    spotifyId: string,
+    name: string,
+    durationMs: number,
+    previewUrl: string | null,
+    album: EmbeddedAlbum,
+    artists: EmbeddedArtist[],
+}
+
 export interface ParsedListeningEvent {
-    spotifyTrackId: string;
-    playedAt: Date;
-    msPlayed: number;
-    isEstimated: boolean;
-    source: 'api' | 'import';
-
-    // Embedded track data 
-    track: {
-        spotifyId: string;
-        name: string;
-        durationMs: number;
-        previewUrl: string | null;
-        album: {
-            spotifyId: string;
-            name: string;
-            imageUrl: string | null;
-            releaseDate: string | null;
-        };
-        artists: Array<{
-            spotifyId: string;
-            name: string;
-            // imageUrl and genres are not included; queued for backfill
-        }>;
-    };
+    spotifyTrackId: string,
+    playedAt: Date,
+    msPlayed: number,
+    isEstimated: boolean,
+    source: Source,
+    track: EmbeddedTrack,
 }
 
-// For the metadata backfill queue
 export interface ArtistMetadataJob {
-    spotifyId: string;
-    addedAt: Date;
+    spotifyId: string,
+    addedAt: Date,
 }
 
-// Sync summary for logging
 export interface SyncSummary {
-    added: number;
-    skipped: number;
-    updated: number;
-    errors: number;
+    added: number,
+    skipped: number,
+    updated: number,
+    errors: number,
 }
 
-// Result from inserting a listening event (includes IDs for aggregation)
 export interface InsertResultWithIds {
-    status: 'added' | 'skipped' | 'updated';
-    trackId: string;
-    artistIds: string[];
-    playedAt: Date;
-    msPlayed: number;
+    status: 'added' | 'skipped' | 'updated',
+    trackId: string,
+    artistIds: string[],
+    playedAt: Date,
+    msPlayed: number,
 }
 
-// Per job caching context to reduce duplicate DB lookups
 export interface SyncContext {
-    albumCache: Map<string, string>;   // spotifyId: internal id
-    artistCache: Map<string, string>;  // spotifyId: internal id
-    trackCache: Map<string, string>;   // spotifyId: internal id
+    albumCache: Map<string, string>,
+    artistCache: Map<string, string>,
+    trackCache: Map<string, string>,
 }
 
 export function createSyncContext(): SyncContext {
@@ -63,4 +63,3 @@ export function createSyncContext(): SyncContext {
         trackCache: new Map(),
     };
 }
-

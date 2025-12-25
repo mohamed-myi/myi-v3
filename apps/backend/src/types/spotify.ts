@@ -1,101 +1,95 @@
-// Spotify API response types
-
 export interface SpotifyErrorResponse {
-    error: string;
-    error_description?: string;
+    error: string,
+    error_description?: string,
 }
 
 export interface SpotifyTokenResponse {
-    access_token: string;
-    token_type: string;
-    scope: string;
-    expires_in: number;
-    refresh_token?: string;
+    access_token: string,
+    token_type: string,
+    scope: string,
+    expires_in: number,
+    refresh_token?: string,
+}
+
+export interface SpotifyImage {
+    url: string,
+    height: number,
+    width: number,
 }
 
 export interface SpotifyUserProfile {
-    id: string;
-    display_name: string | null;
-    email: string;
-    country: string;
-    images: Array<{ url: string; height: number; width: number }>;
+    id: string,
+    display_name: string | null,
+    email: string,
+    country: string,
+    images: SpotifyImage[],
 }
 
 export interface SpotifyRecentlyPlayedResponse {
-    items: Array<{
-        track: SpotifyTrack;
-        played_at: string;
-    }>;
+    items: {
+        track: SpotifyTrack,
+        played_at: string,
+    }[],
     cursors?: {
-        after: string;
-        before: string;
-    };
+        after: string,
+        before: string,
+    },
 }
 
 export interface SpotifyTrack {
-    id: string;
-    name: string;
-    duration_ms: number;
-    preview_url: string | null;
-    album: SpotifyAlbum;
-    artists: SpotifyArtist[];
+    id: string,
+    name: string,
+    duration_ms: number,
+    preview_url: string | null,
+    album: SpotifyAlbum,
+    artists: SpotifyArtist[],
 }
 
 export interface SpotifyAlbum {
-    id: string;
-    name: string;
-    images: Array<{ url: string; height: number; width: number }>;
-    release_date: string;
+    id: string,
+    name: string,
+    images: SpotifyImage[],
+    release_date: string,
 }
 
 export interface SpotifyArtist {
-    id: string;
-    name: string;
+    id: string,
+    name: string,
 }
 
-// Play context (album, playlist, or artist the track was played from)
 export interface SpotifyPlayContext {
-    type: 'album' | 'artist' | 'playlist';
-    href: string;
-    uri: string;
+    type: 'album' | 'artist' | 'playlist',
+    href: string,
+    uri: string,
 }
 
-// Full artist with images and genres (from /artists endpoint)
 export interface SpotifyFullArtist {
-    id: string;
-    name: string;
-    images: Array<{ url: string; height: number; width: number }>;
-    genres: string[];
-    popularity: number;
+    id: string,
+    name: string,
+    images: SpotifyImage[],
+    genres: string[],
+    popularity: number,
 }
 
-// Response from GET /artists?ids=...
 export interface SpotifyArtistsBatchResponse {
-    artists: SpotifyFullArtist[];
+    artists: SpotifyFullArtist[],
 }
 
-// Response from GET /me/top/tracks
-export interface SpotifyTopTracksResponse {
-    items: SpotifyTrack[];
-    total: number;
-    limit: number;
-    offset: number;
+export interface SpotifyPaginatedResponse<T> {
+    items: T[],
+    total: number,
+    limit: number,
+    offset: number,
 }
 
-// Response from GET /me/top/artists
-export interface SpotifyTopArtistsResponse {
-    items: SpotifyFullArtist[];
-    total: number;
-    limit: number;
-    offset: number;
-}
+export type SpotifyTopTracksResponse = SpotifyPaginatedResponse<SpotifyTrack>;
 
-// Response from GET /tracks?ids=
+export type SpotifyTopArtistsResponse = SpotifyPaginatedResponse<SpotifyFullArtist>;
+
 export interface SpotifyTracksBatchResponse {
-    tracks: SpotifyTrack[];
+    tracks: SpotifyTrack[],
 }
 
-// Response from GET /albums?ids=
 export interface SpotifyAlbumsBatchResponse {
-    albums: SpotifyAlbum[];
+    albums: SpotifyAlbum[],
 }
