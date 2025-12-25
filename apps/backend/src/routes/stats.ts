@@ -1,13 +1,13 @@
 import { FastifyInstance } from 'fastify';
 import { prisma } from '../lib/prisma';
-import { redis, getOrSet } from '../lib/redis';
-import { toJSON } from '../lib/serialization';
+import { Term, BucketType } from '@prisma/client';
+import { getOrSet } from '../lib/redis';
 import { triggerLazyRefreshIfStale } from '../services/top-stats-service';
 import { topStatsQueue } from '../workers/top-stats-queue';
+import { getSummaryStats, getOverviewStats, getActivityStats } from '../services/stats-service';
 
 const CACHE_TTL = 300;
 
-// JSON Schema for range parameter validation
 const rangeSchema = {
     querystring: {
         type: 'object',
@@ -21,7 +21,6 @@ const rangeSchema = {
     }
 };
 
-// JSON Schema for history pagination
 const historySchema = {
     querystring: {
         type: 'object',
@@ -32,15 +31,14 @@ const historySchema = {
     }
 };
 
-const TERM_MAP: Record<string, string> = {
-    '4weeks': 'short_term',
-    '6months': 'medium_term',
-    'year': 'long_term',
+const TERM_MAP: Record<string, Term> = {
+    '4weeks': Term.SHORT_TERM,
+    '6months': Term.MEDIUM_TERM,
+    'year': Term.LONG_TERM,
 };
 
 export async function statsRoutes(fastify: FastifyInstance) {
 
-    // GET /me/stats/summary: Profile stats summary
     fastify.get('/me/stats/summary', {
         schema: {
             description: 'Get summary statistics for user profile',
@@ -65,37 +63,12 @@ export async function statsRoutes(fastify: FastifyInstance) {
 
         const cacheKey = `stats:summary:${userId}`;
         const response = await getOrSet(cacheKey, CACHE_TTL, async () => {
-            const [user, trackStats, artistCount, listeningEvents] = await Promise.all([
-                prisma.user.findUnique({
-                    where: { id: userId },
-                    select: { createdAt: true }
-                }),
-                prisma.userTrackStats.aggregate({
-                    where: { userId },
-                    _sum: { playCount: true, totalMs: true },
-                    _count: { trackId: true }
-                }),
-                prisma.userArtistStats.count({
-                    where: { userId }
-                }),
-                prisma.listeningEvent.count({
-                    where: { userId }
-                })
-            ]);
-
-            return toJSON({
-                totalPlays: listeningEvents,
-                totalListeningMs: trackStats._sum.totalMs || 0n,
-                uniqueTracks: trackStats._count.trackId || 0,
-                uniqueArtists: artistCount,
-                memberSince: user?.createdAt
-            });
+            return getSummaryStats(userId);
         });
 
         return response;
     });
 
-    // GET /me/stats/overview
     fastify.get('/me/stats/overview', {
         schema: {
             description: 'Get overview statistics for the current user',
@@ -124,33 +97,12 @@ export async function statsRoutes(fastify: FastifyInstance) {
 
         const cacheKey = `stats:overview:${userId}`;
         const response = await getOrSet(cacheKey, CACHE_TTL, async () => {
-            const [trackStats, topArtist] = await Promise.all([
-                prisma.userTrackStats.aggregate({
-                    where: { userId },
-                    _sum: { totalMs: true },
-                    _count: { trackId: true },
-                }),
-                prisma.userArtistStats.findFirst({
-                    where: { userId },
-                    orderBy: { playCount: 'desc' },
-                    include: { artist: true },
-                }),
-            ]);
-
-            const data = {
-                totalPlayTimeMs: trackStats._sum.totalMs || 0n,
-                totalTracks: trackStats._count.trackId || 0,
-                topArtist: topArtist ? topArtist.artist.name : null,
-                topArtistImage: topArtist?.artist.imageUrl || null,
-            };
-
-            return toJSON(data);
+            return getOverviewStats(userId);
         });
 
         return response;
     });
 
-    // GET /me/stats/activity
     fastify.get('/me/stats/activity', {
         schema: {
             description: 'Get listening activity activity (hourly and daily)',
@@ -201,22 +153,20 @@ export async function statsRoutes(fastify: FastifyInstance) {
                     orderBy: { hour: 'asc' },
                 }),
                 prisma.userTimeBucketStats.findMany({
-                    where: { userId, bucketType: 'DAY' },
+                    where: { userId, bucketType: BucketType.DAY },
                     orderBy: { bucketDate: 'desc' },
                     take: 30,
                 }),
             ]);
 
-            return toJSON({
+            return {
                 hourly: hourly.map(h => ({ hour: h.hour, playCount: h.playCount })),
                 daily: daily.map(d => ({ date: d.bucketDate, playCount: d.playCount })),
-            });
+            };
         });
         return response;
     });
 
-    // GET /me/stats/top/tracks
-    // Uses Spotify's personalized Top Tracks from SpotifyTopTrack table
     fastify.get<{ Querystring: { range?: string; sortBy?: string } }>('/me/stats/top/tracks', {
         schema: {
             ...rangeSchema,
@@ -272,7 +222,6 @@ export async function statsRoutes(fastify: FastifyInstance) {
         const userId = request.userId;
         if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
 
-        // Lazy trigger: queue background refresh if stale (non-blocking)
         const refreshStatus = await triggerLazyRefreshIfStale(userId);
 
         const range = request.query.range || '4weeks';
@@ -284,7 +233,6 @@ export async function statsRoutes(fastify: FastifyInstance) {
         const cacheKey = `stats:tracks:${userId}:${range}:${sortBy}`;
 
         const response = await getOrSet(cacheKey, CACHE_TTL, async () => {
-            // All Time: use UserTrackStats (computed from imports + syncs)
             if (isAllTime || sortBy === 'time') {
                 const topStats = await prisma.userTrackStats.findMany({
                     where: { userId },
@@ -303,11 +251,11 @@ export async function statsRoutes(fastify: FastifyInstance) {
                 const data = topStats.map((stat: any, index: number) => ({
                     ...stat.track,
                     rank: index + 1,
-                    totalMs: stat.totalMs.toString(),
+                    totalMs: stat.totalMs,
                     playCount: stat.playCount
                 }));
 
-                return toJSON(data);
+                return data;
 
             } else {
                 const topTracks = await prisma.spotifyTopTrack.findMany({
@@ -328,14 +276,13 @@ export async function statsRoutes(fastify: FastifyInstance) {
                     rank: t.rank,
                 }));
 
-                return toJSON(data);
+                return data;
             }
         });
 
         return response;
     });
 
-    // GET /me/stats/top/artists
     fastify.get<{ Querystring: { range?: string } }>('/me/stats/top/artists', {
         schema: {
             ...rangeSchema,
@@ -366,14 +313,12 @@ export async function statsRoutes(fastify: FastifyInstance) {
 
         const range = request.query.range || '4weeks';
 
-        // Map frontend ranges to Spotify's time_range terms
         const term = TERM_MAP[range];
         const isAllTime = range === 'alltime';
 
         const cacheKey = `stats:artists:${userId}:${range}`;
 
         const response = await getOrSet(cacheKey, CACHE_TTL, async () => {
-            // All Time: use UserArtistStats (computed from imports + syncs)
             if (isAllTime) {
                 const topStats = await prisma.userArtistStats.findMany({
                     where: { userId },
@@ -388,9 +333,8 @@ export async function statsRoutes(fastify: FastifyInstance) {
                     playCount: stat.playCount
                 }));
 
-                return toJSON(data);
+                return data;
             } else {
-                // Spotify API ranges: query SpotifyTopArtist
                 const topArtists = await prisma.spotifyTopArtist.findMany({
                     where: { userId, term },
                     orderBy: { rank: 'asc' },
@@ -402,14 +346,13 @@ export async function statsRoutes(fastify: FastifyInstance) {
                     rank: a.rank,
                 }));
 
-                return toJSON(data);
+                return data;
             }
         });
 
         return response;
     });
 
-    // GET /me/stats/song-of-the-day: Most played track in last 24 hours
     fastify.get('/me/stats/song-of-the-day', {
         schema: {
             description: 'Get the most played track in the last 24 hours (Song of the Day)',
@@ -439,7 +382,6 @@ export async function statsRoutes(fastify: FastifyInstance) {
         const response = await getOrSet(cacheKey, CACHE_TTL, async () => {
             const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-            // Group listening events by track in last 24h
             const recentPlays = await prisma.listeningEvent.groupBy({
                 by: ['trackId'],
                 where: {
@@ -455,7 +397,6 @@ export async function statsRoutes(fastify: FastifyInstance) {
             let playCount = recentPlays[0]?._count?.trackId || 0;
             let isFallback = false;
 
-            // Fallback: get all-time most played track
             if (!trackId) {
                 const allTimeMostPlayed = await prisma.userTrackStats.findFirst({
                     where: { userId },
@@ -468,7 +409,7 @@ export async function statsRoutes(fastify: FastifyInstance) {
             }
 
             if (!trackId) {
-                return toJSON({
+                return {
                     id: null,
                     spotifyId: null,
                     name: 'No tracks played yet',
@@ -477,10 +418,9 @@ export async function statsRoutes(fastify: FastifyInstance) {
                     image: null,
                     playCount: 0,
                     isFallback: true
-                });
+                };
             }
 
-            // Fetch track details
             const track = await prisma.track.findUnique({
                 where: { id: trackId },
                 include: {
@@ -493,7 +433,7 @@ export async function statsRoutes(fastify: FastifyInstance) {
             });
 
             if (!track) {
-                return toJSON({
+                return {
                     id: null,
                     spotifyId: null,
                     name: 'Track not found',
@@ -502,12 +442,12 @@ export async function statsRoutes(fastify: FastifyInstance) {
                     image: null,
                     playCount: 0,
                     isFallback: true
-                });
+                };
             }
 
             const primaryArtist = track.artists[0]?.artist;
 
-            return toJSON({
+            return {
                 id: track.id,
                 spotifyId: track.spotifyId,
                 name: track.name,
@@ -516,13 +456,12 @@ export async function statsRoutes(fastify: FastifyInstance) {
                 image: track.album?.imageUrl || null,
                 playCount,
                 isFallback
-            });
+            };
         });
 
         return response;
     });
 
-    // GET /me/history
     fastify.get<{ Querystring: { page?: number; limit?: number } }>('/me/history', {
         schema: {
             ...historySchema,
@@ -588,21 +527,22 @@ export async function statsRoutes(fastify: FastifyInstance) {
         const limit = Number(request.query.limit) || 50;
         const skip = (page - 1) * limit;
 
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
         const [events, total] = await Promise.all([
             prisma.listeningEvent.findMany({
-                where: { userId },
+                where: { userId, playedAt: { gte: thirtyDaysAgo } },
                 orderBy: { playedAt: 'desc' },
                 take: limit,
                 skip,
                 include: { track: { include: { artists: { include: { artist: true } }, album: true } } },
             }),
-            prisma.listeningEvent.count({ where: { userId } }),
+            prisma.listeningEvent.count({ where: { userId, playedAt: { gte: thirtyDaysAgo } } }),
         ]);
 
-        return toJSON({ events, total, page, limit });
+        return { events, total, page, limit };
     });
 
-    // POST /me/stats/top/refresh: Manual refresh trigger (rate-limited: 1 per 10 min)
     fastify.post('/me/stats/top/refresh', {
         schema: {
             description: 'Manually trigger a refresh of top stats (rate-limited)',
@@ -629,7 +569,6 @@ export async function statsRoutes(fastify: FastifyInstance) {
         const userId = request.userId;
         if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
 
-        // Queue high-priority job
         await topStatsQueue.add(
             `manual-${userId}`,
             { userId, priority: 'high' },

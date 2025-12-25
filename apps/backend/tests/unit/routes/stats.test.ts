@@ -1,4 +1,3 @@
-// Mock env module BEFORE any imports to prevent process.exit(1)
 jest.mock('@/env', () => ({
     env: {
         NODE_ENV: 'test',
@@ -13,17 +12,15 @@ jest.mock('@/env', () => ({
 }));
 
 import { FastifyInstance } from 'fastify';
-import { prisma } from '@/lib/prisma';
-import { redis } from '@/lib/redis';
-import { build } from '@/index';
-import request from 'supertest';
-import { createServer } from 'http';
+import { prisma } from '../../../src/lib/prisma';
+import { redis } from '../../../src/lib/redis';
+import { build } from '../../../src/index';
 
 
 jest.mock('@/lib/prisma', () => ({
     prisma: {
         userTrackStats: { aggregate: jest.fn(), findMany: jest.fn() },
-        userArtistStats: { findFirst: jest.fn(), findMany: jest.fn() },
+        userArtistStats: { findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn() },
         listeningEvent: { findMany: jest.fn(), count: jest.fn(), groupBy: jest.fn() },
         user: { findUnique: jest.fn() }, // For auth
         track: { findMany: jest.fn() },
@@ -31,6 +28,12 @@ jest.mock('@/lib/prisma', () => ({
         spotifyTopArtist: { findMany: jest.fn() },
         $queryRaw: jest.fn(),
     },
+}));
+
+jest.mock('@/services/stats-service', () => ({
+    getSummaryStats: jest.fn(),
+    getOverviewStats: jest.fn(),
+    getActivityStats: jest.fn(),
 }));
 
 jest.mock('@/lib/redis', () => {
@@ -48,7 +51,10 @@ jest.mock('@/lib/redis', () => {
             }
             const data = await fetcher();
             if (data !== null && data !== undefined) {
-                await mockRedis.setex(key, ttl, JSON.stringify(data));
+                const serialized = JSON.stringify(data, (_, value) =>
+                    typeof value === 'bigint' ? value.toString() : value
+                );
+                await mockRedis.setex(key, ttl, serialized);
             }
             return data;
         }),
@@ -66,10 +72,9 @@ jest.mock('bullmq', () => ({
     })),
 }));
 
-// Mock auth middleware to bypass real cookie checks and inject userId
 jest.mock('@/middleware/auth', () => ({
     authMiddleware: async (req: any, reply: any) => {
-        req.userId = 'user-1'; // Authenticated
+        req.userId = 'user-1';
     },
 }));
 
@@ -93,13 +98,12 @@ describe('Stats API', () => {
         it('should return stats from DB on cache miss', async () => {
             (redis.get as jest.Mock).mockResolvedValue(null);
 
-            // Mock Prisma response
-            (prisma.userTrackStats.aggregate as jest.Mock).mockResolvedValue({
-                _sum: { totalMs: BigInt(5000) },
-                _count: { trackId: 10 },
-            });
-            (prisma.userArtistStats.findFirst as jest.Mock).mockResolvedValue({
-                artist: { name: 'Top Artist' },
+            const { getOverviewStats } = require('@/services/stats-service');
+            (getOverviewStats as jest.Mock).mockResolvedValue({
+                totalPlayTimeMs: BigInt(5000),
+                totalTracks: 10,
+                topArtist: 'Top Artist',
+                topArtistImage: null,
             });
 
             const response = await app.inject({
@@ -110,12 +114,10 @@ describe('Stats API', () => {
             expect(response.statusCode).toBe(200);
             const body = response.json();
 
-            // Verify BigInt serialization
             expect(body.totalPlayTimeMs).toBe('5000');
             expect(body.totalTracks).toBe(10);
             expect(body.topArtist).toBe('Top Artist');
 
-            // Verify Cache Set
             expect(redis.setex).toHaveBeenCalledWith(
                 'stats:overview:user-1',
                 300,
@@ -309,7 +311,6 @@ describe('Stats API', () => {
             const body = response.json();
             expect(body.events).toHaveLength(1);
             expect(body.total).toBe(100);
-            // Query params come through as strings from the route
             expect(Number(body.page)).toBe(1);
             expect(Number(body.limit)).toBe(50);
         });
@@ -338,7 +339,6 @@ describe('Stats API', () => {
                 url: '/me/history?page=2&limit=25',
             });
 
-            // Verify prisma was called with correct skip
             expect(prisma.listeningEvent.findMany).toHaveBeenCalled();
             const callArgs = (prisma.listeningEvent.findMany as jest.Mock).mock.calls[0][0];
             expect(callArgs.skip).toBe(25);

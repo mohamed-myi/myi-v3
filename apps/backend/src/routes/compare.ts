@@ -1,9 +1,16 @@
 import { FastifyInstance } from 'fastify';
 import { prisma } from '../lib/prisma';
+import { Term } from '@prisma/client';
 import { toJSON } from '../lib/serialization';
 
 type TimeRange = 'short_term' | 'medium_term' | 'long_term';
 type CompareType = 'artists' | 'tracks' | 'both';
+
+const TERM_MAP: Record<TimeRange, Term> = {
+    'short_term': Term.SHORT_TERM,
+    'medium_term': Term.MEDIUM_TERM,
+    'long_term': Term.LONG_TERM,
+};
 
 interface CompareQuery {
     timeRange?: TimeRange;
@@ -37,7 +44,6 @@ interface CompareResult {
     };
 }
 
-// JSON Schema for compare endpoint
 const compareSchema = {
     params: {
         type: 'object',
@@ -78,7 +84,6 @@ export async function compareRoutes(fastify: FastifyInstance) {
             type = 'both',
         } = request.query;
 
-        // Find target user
         const targetUserRecord = await prisma.user.findUnique({
             where: { spotifyId: targetUser },
             include: { settings: true },
@@ -92,22 +97,21 @@ export async function compareRoutes(fastify: FastifyInstance) {
             return reply.status(403).send({ error: 'Profile is private' });
         }
 
-        // Fetch top items for both users
+        const term = TERM_MAP[timeRange];
+
         const [sourceArtists, targetArtists, sourceTracks, targetTracks] = await Promise.all([
-            type !== 'tracks' ? getTopArtists(sourceUserId, timeRange) : Promise.resolve([]),
-            type !== 'tracks' ? getTopArtists(targetUserRecord.id, timeRange) : Promise.resolve([]),
-            type !== 'artists' ? getTopTracks(sourceUserId, timeRange) : Promise.resolve([]),
-            type !== 'artists' ? getTopTracks(targetUserRecord.id, timeRange) : Promise.resolve([]),
+            type !== 'tracks' ? getTopArtists(sourceUserId, term) : Promise.resolve([]),
+            type !== 'tracks' ? getTopArtists(targetUserRecord.id, term) : Promise.resolve([]),
+            type !== 'artists' ? getTopTracks(sourceUserId, term) : Promise.resolve([]),
+            type !== 'artists' ? getTopTracks(targetUserRecord.id, term) : Promise.resolve([]),
         ]);
 
-        // Calculate common items and scores
         const { commonItems: commonArtists, score: artistScore } =
             calculateCommonItems(sourceArtists, targetArtists, 'artist');
 
         const { commonItems: commonTracks, score: trackScore } =
             calculateCommonItems(sourceTracks, targetTracks, 'track');
 
-        // Combined score (weighted average)
         let finalScore: number;
 
         if (type === 'artists') {
@@ -115,7 +119,6 @@ export async function compareRoutes(fastify: FastifyInstance) {
         } else if (type === 'tracks') {
             finalScore = trackScore;
         } else {
-            // 50/50 weight for both
             finalScore = Math.round((artistScore + trackScore) / 2);
         }
 
@@ -139,8 +142,7 @@ export async function compareRoutes(fastify: FastifyInstance) {
     });
 }
 
-// Get top artists from SpotifyTopArtist table
-async function getTopArtists(userId: string, term: TimeRange) {
+async function getTopArtists(userId: string, term: Term) {
     return prisma.spotifyTopArtist.findMany({
         where: { userId, term },
         orderBy: { rank: 'asc' },
@@ -148,8 +150,7 @@ async function getTopArtists(userId: string, term: TimeRange) {
     });
 }
 
-// Get top tracks from SpotifyTopTrack table
-async function getTopTracks(userId: string, term: TimeRange) {
+async function getTopTracks(userId: string, term: Term) {
     return prisma.spotifyTopTrack.findMany({
         where: { userId, term },
         orderBy: { rank: 'asc' },
@@ -161,7 +162,6 @@ async function getTopTracks(userId: string, term: TimeRange) {
     });
 }
 
-// Calculate common items with weighted Jaccard score
 function calculateCommonItems(
     sourceItems: any[],
     targetItems: any[],
@@ -188,7 +188,6 @@ function calculateCommonItems(
             const sourceRank = sourceItem.rank;
             const targetRank = targetItem.rank;
 
-            // Rank 1 gets weight ~1.0, Rank 50 gets weight ~0.0
             const avgRank = (sourceRank + targetRank) / 2;
             const rankWeight = 1 - (avgRank / 50);
 
@@ -201,17 +200,14 @@ function calculateCommonItems(
                 imageUrl: data.imageUrl ?? data.album?.imageUrl ?? null,
                 sourceRank,
                 targetRank,
-                rankDiff: targetRank - sourceRank, // Positive = target ranks higher
+                rankDiff: targetRank - sourceRank,
             });
         }
     }
 
-    // Score: weighted matches / max possible weighted score
-    // Max if all 50 items matched at same ranks: sum of (1 - i/50) for i=0..49 ≈ 25
     const maxPossibleScore = 25;
     const score = Math.min(100, Math.round((weightedMatchScore / maxPossibleScore) * 100));
 
-    // Sort by combined rank
     common.sort((a, b) => (a.sourceRank + a.targetRank) - (b.sourceRank + b.targetRank));
 
     return { commonItems: common, score };

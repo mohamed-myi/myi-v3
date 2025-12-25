@@ -1,12 +1,11 @@
-// Stats Routes Integration Tests
-// Tests for /me/stats/* endpoints with mocked dependencies
+
 
 import { config } from 'dotenv';
 import { resolve } from 'path';
 
 config({ path: resolve(__dirname, '../../../../.env') });
 
-// Mock Redis with getOrSet function
+
 const mockRedisGet = jest.fn();
 const mockRedisSetex = jest.fn();
 
@@ -23,32 +22,47 @@ jest.mock('../../src/lib/redis', () => ({
         }
         const data = await fetcher();
         if (data !== null && data !== undefined) {
-            await mockRedisSetex(key, ttl, JSON.stringify(data));
+
+            const serialized = JSON.stringify(data, (_, value) =>
+                typeof value === 'bigint' ? value.toString() : value
+            );
+            await mockRedisSetex(key, ttl, serialized);
         }
         return data;
     }),
     closeRedis: jest.fn(),
 }));
 
-// Mock queues
+
 jest.mock('../../src/workers/queues', () => ({
     syncUserQueue: { add: jest.fn() },
     importQueue: { add: jest.fn() },
 }));
 
-// Mock top-stats-queue
+
 jest.mock('../../src/workers/top-stats-queue', () => ({
     topStatsQueue: {
         add: jest.fn().mockResolvedValue({}),
     },
 }));
 
-// Mock top-stats-service
+
 jest.mock('../../src/services/top-stats-service', () => ({
     triggerLazyRefreshIfStale: jest.fn().mockResolvedValue({ queued: false, staleHours: 0 }),
 }));
 
-// Mock Prisma
+
+const mockGetSummaryStats = jest.fn();
+const mockGetOverviewStats = jest.fn();
+const mockGetActivityStats = jest.fn();
+
+jest.mock('../../src/services/stats-service', () => ({
+    getSummaryStats: mockGetSummaryStats,
+    getOverviewStats: mockGetOverviewStats,
+    getActivityStats: mockGetActivityStats,
+}));
+
+
 const mockPrisma = {
     userTrackStats: {
         aggregate: jest.fn(),
@@ -78,7 +92,7 @@ jest.mock('../../src/lib/prisma', () => ({
     prisma: mockPrisma,
 }));
 
-// Mock auth middleware
+
 jest.mock('../../src/middleware/auth', () => ({
     authMiddleware: async (req: any) => {
         const testUserId = req.headers['x-test-user-id'];
@@ -108,7 +122,7 @@ describe('Stats Routes Integration', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
-        mockRedisGet.mockResolvedValue(null); // No cache by default
+        mockRedisGet.mockResolvedValue(null);
     });
 
     describe('GET /me/stats/overview', () => {
@@ -122,12 +136,11 @@ describe('Stats Routes Integration', () => {
         });
 
         it('returns overview stats for authenticated user', async () => {
-            mockPrisma.userTrackStats.aggregate.mockResolvedValue({
-                _sum: { totalMs: 1800000n },
-                _count: { trackId: 10 },
-            });
-            mockPrisma.userArtistStats.findFirst.mockResolvedValue({
-                artist: { name: 'Top Artist', imageUrl: 'https://artist.jpg' },
+            mockGetOverviewStats.mockResolvedValue({
+                totalPlayTimeMs: 1800000n,
+                totalTracks: 10,
+                topArtist: 'Top Artist',
+                topArtistImage: 'https://artist.jpg',
             });
 
             const response = await app.inject({
@@ -203,7 +216,7 @@ describe('Stats Routes Integration', () => {
 
             expect(mockPrisma.spotifyTopTrack.findMany).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    where: { userId: 'user-123', term: 'medium_term' },
+                    where: { userId: 'user-123', term: 'MEDIUM_TERM' },
                 })
             );
         });

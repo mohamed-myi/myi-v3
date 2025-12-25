@@ -22,7 +22,6 @@ const COOKIE_OPTIONS = {
 };
 
 export async function authRoutes(fastify: FastifyInstance) {
-    // GET /auth/login: Redirect to Spotify auth (stricter rate limit: 20/minute)
     fastify.get('/auth/login', {
         config: { rateLimit: AUTH_RATE_LIMIT },
         schema: {
@@ -37,7 +36,6 @@ export async function authRoutes(fastify: FastifyInstance) {
         const codeChallenge = generateCodeChallenge(codeVerifier);
         const state = generateState();
 
-        // Store PKCE verifier and state in cookies for callback validation
         reply.setCookie('pkce_verifier', codeVerifier, {
             ...COOKIE_OPTIONS,
             maxAge: 600,
@@ -51,7 +49,6 @@ export async function authRoutes(fastify: FastifyInstance) {
         return reply.redirect(authUrl);
     });
 
-    // GET /auth/callback: Handle Spotify OAuth callback (stricter rate limit: 20/minute)
     fastify.get('/auth/callback', {
         config: { rateLimit: AUTH_RATE_LIMIT },
         schema: {
@@ -76,13 +73,11 @@ export async function authRoutes(fastify: FastifyInstance) {
             error?: string;
         };
 
-        // Handle user rejection
         if (error) {
             fastify.log.warn(`OAuth error: ${error}`);
             return reply.redirect(`${FRONTEND_URL}?error=access_denied`);
         }
 
-        // Validate state
         const storedState = (request.cookies as Record<string, string>).oauth_state;
 
         if (!state || state !== storedState) {
@@ -90,7 +85,6 @@ export async function authRoutes(fastify: FastifyInstance) {
             return reply.redirect(`${FRONTEND_URL}?error=invalid_state`);
         }
 
-        // Get PKCE verifier
         const codeVerifier = (request.cookies as Record<string, string>).pkce_verifier;
         if (!codeVerifier) {
             fastify.log.warn('Missing PKCE verifier');
@@ -102,16 +96,12 @@ export async function authRoutes(fastify: FastifyInstance) {
         }
 
         try {
-            // Exchange code for tokens
             const tokens = await exchangeCodeForTokens(code, codeVerifier);
 
-            // Get user profile
             const profile = await getUserProfile(tokens.access_token);
 
-            // Encrypt refresh token
             const encryptedRefreshToken = encrypt(tokens.refresh_token!);
 
-            // Create or update user in database
             const user = await prisma.user.upsert({
                 where: { spotifyId: profile.id },
                 create: {
@@ -125,11 +115,11 @@ export async function authRoutes(fastify: FastifyInstance) {
                         create: {
                             refreshToken: encryptedRefreshToken,
                             scopes: tokens.scope,
-                            lastRefreshAt: new Date(), // Explicit timestamp for fresh token
+                            lastRefreshAt: new Date(),
                         },
                     },
                     settings: {
-                        create: {}, // Use defaults
+                        create: {},
                     },
                 },
                 update: {
@@ -155,38 +145,32 @@ export async function authRoutes(fastify: FastifyInstance) {
                 },
             });
 
-            // Ensure user settings exist 
             await prisma.userSettings.upsert({
                 where: { userId: user.id },
                 create: { userId: user.id },
                 update: {},
             });
 
-            // Set session cookie
             reply.setCookie('session', user.id, {
                 ...COOKIE_OPTIONS,
-                maxAge: 60 * 60 * 24 * 30, // 30 days
+                maxAge: 60 * 60 * 24 * 30,
             });
 
-            // Set auth status cookie for frontend
             reply.setCookie('auth_status', 'authenticated', {
                 ...COOKIE_OPTIONS,
                 httpOnly: false,
                 maxAge: 60 * 60 * 24 * 30,
             });
 
-            // Clear PKCE cookies
             reply.clearCookie('pkce_verifier', { path: '/' });
             reply.clearCookie('oauth_state', { path: '/' });
 
-            // Cache the initial access token to avoid immediate refresh
             await cacheAccessToken(user.id, {
                 accessToken: tokens.access_token,
                 expiresIn: tokens.expires_in,
             });
 
-            // Trigger first poll of recent tracks (delayed 5s for DB consistency)
-            fastify.log.info(`User ${user.id} logged in, triggering initial sync (delayed 5s)`);
+            fastify.log.info(`User ${user.id} logged in, triggering initial sync`);
             await syncUserQueue.add(`sync-${user.id}`, { userId: user.id }, { delay: 5000 });
 
             return reply.redirect(`${FRONTEND_URL}/dashboard`);
@@ -196,7 +180,6 @@ export async function authRoutes(fastify: FastifyInstance) {
         }
     });
 
-    // POST /auth/logout: Clear session
     fastify.post('/auth/logout', {
         schema: {
             description: 'Logout current user',
@@ -216,7 +199,6 @@ export async function authRoutes(fastify: FastifyInstance) {
         return { success: true };
     });
 
-    // GET /auth/me: Get current user
     fastify.get('/auth/me', {
         schema: {
             description: 'Get current authenticated user profile',
@@ -269,9 +251,8 @@ export async function authRoutes(fastify: FastifyInstance) {
             return reply.status(401).send({ error: 'User not found' });
         }
 
-        // Check if user has completed at least one import
         const hasImportedHistory = await prisma.importJob.findFirst({
-            where: { userId: user.id, status: 'completed' },
+            where: { userId: user.id, status: 'COMPLETED' },
             select: { id: true }
         }) !== null;
 
