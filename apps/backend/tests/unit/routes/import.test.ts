@@ -18,6 +18,8 @@ jest.mock('@/lib/redis', () => ({
         get: jest.fn(),
         set: jest.fn(),
     },
+    getRedisUrl: jest.fn().mockReturnValue('redis://mock:6379'),
+    REDIS_CONNECTION_CONFIG: {},
 }));
 
 jest.mock('@/lib/prisma', () => ({

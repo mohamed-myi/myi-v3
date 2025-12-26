@@ -175,39 +175,56 @@ async function processSync(job: Job<SyncUserJob>): Promise<SyncSummary> {
 }
 
 // Create a dedicated Redis connection for the worker to avoid blocking the shared instance
-const workerConnection = new Redis(getRedisUrl(), REDIS_CONNECTION_CONFIG);
+let workerConnection: Redis | null = null;
+export let syncWorker: Worker<SyncUserJob, SyncSummary> | null = null;
 
-export const syncWorker = new Worker<SyncUserJob, SyncSummary>(
-    'sync-user',
-    processSync,
-    {
-        connection: workerConnection,
-        concurrency: 5,
-    }
-);
+export function setupSyncWorker() {
+    if (syncWorker) return syncWorker;
 
-syncWorker.on('completed', (job, result) => {
-    log.info({ event: 'sync_completed', userId: job.data.userId, ...result }, 'Sync completed');
-});
+    workerConnection = new Redis(getRedisUrl(), REDIS_CONNECTION_CONFIG);
 
-syncWorker.on('failed', (job, error) => {
-    const isExhausted = job && job.attemptsMade >= (DEFAULT_JOB_OPTIONS.attempts || 5);
-    if (isExhausted) {
-        log.error(
-            { event: 'sync_exhausted', userId: job?.data.userId, attempts: job?.attemptsMade },
-            'Sync job exhausted all retries'
-        );
-    } else {
-        log.warn(
-            { event: 'sync_retry', userId: job?.data.userId, attempt: job?.attemptsMade, error: error.message },
-            'Sync failed, will retry'
-        );
-    }
-});
+    syncWorker = new Worker<SyncUserJob, SyncSummary>(
+        'sync-user',
+        processSync,
+        {
+            connection: workerConnection,
+            concurrency: 5,
+        }
+    );
 
-setSyncWorkerRunning(true);
-log.info('Sync worker initialized with dedicated Redis connection');
+    syncWorker.on('completed', (job, result) => {
+        log.info({ event: 'sync_completed', userId: job.data.userId, ...result }, 'Sync completed');
+    });
+
+    syncWorker.on('failed', (job, error) => {
+        const isExhausted = job && job.attemptsMade >= (DEFAULT_JOB_OPTIONS.attempts || 5);
+        if (isExhausted) {
+            log.error(
+                { event: 'sync_exhausted', userId: job?.data.userId, attempts: job?.attemptsMade },
+                'Sync job exhausted all retries'
+            );
+        } else {
+            log.warn(
+                { event: 'sync_retry', userId: job?.data.userId, attempt: job?.attemptsMade, error: error.message },
+                'Sync failed, will retry'
+            );
+        }
+    });
+
+    setSyncWorkerRunning(true);
+    log.info('Sync worker initialized with dedicated Redis connection');
+
+    return syncWorker;
+}
+
 
 export async function closeSyncWorker(): Promise<void> {
-    await syncWorker.close();
+    if (syncWorker) {
+        await syncWorker.close();
+        syncWorker = null;
+    }
+    if (workerConnection) {
+        await workerConnection.quit();
+        workerConnection = null;
+    }
 }

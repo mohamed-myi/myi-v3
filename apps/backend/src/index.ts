@@ -17,7 +17,7 @@ import multipart from '@fastify/multipart';
 import { authMiddleware } from './middleware/auth';
 import { registerRateLimiting } from './middleware/rate-limit';
 import { closeRedis } from './lib/redis';
-import { closeSyncWorker } from './workers/sync-worker';
+import { closeSyncWorker, setupSyncWorker } from './workers/sync-worker';
 import { generateRequestId, logger } from './lib/logger';
 import { globalErrorHandler } from './lib/error-handler';
 
@@ -82,7 +82,7 @@ export const build = async () => {
 };
 
 import { metadataWorker } from './workers/metadata-worker';
-import { topStatsWorker, closeTopStatsWorker } from './workers/top-stats-worker';
+import { closeTopStatsWorker, setupTopStatsWorker } from './workers/top-stats-worker';
 import { HealingService } from './services/healing';
 
 if (require.main === module) {
@@ -91,6 +91,10 @@ if (require.main === module) {
       const server = await build();
       const port = Number(process.env.PORT) || 3001;
       await server.listen({ port, host: '0.0.0.0' });
+
+      // Initialize workers
+      setupSyncWorker();
+      setupTopStatsWorker();
 
       logger.info('Server started, sync worker running');
 
