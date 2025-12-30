@@ -5,7 +5,11 @@ import { ProcessingScreen } from '../processing-screen'
 // Mock Image component since it's Next.js specific
 jest.mock('next/image', () => ({
     __esModule: true,
-    default: ({ unoptimized, ...props }: any) => <img {...props} />
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars
+    default: ({ unoptimized: _unoptimized, ...props }: any) => (
+        // eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text
+        <img {...props} />
+    )
 }))
 
 describe('ProcessingScreen Component', () => {
@@ -26,6 +30,6 @@ describe('ProcessingScreen Component', () => {
 
         expect(screen.getByAltText('MYI')).toBeInTheDocument()
         expect(screen.getByText(/Syncing Account/i)).toBeInTheDocument()
-        expect(screen.getByText(/MYI • Your Music Intelligence/i)).toBeInTheDocument()
+        expect(screen.getByText(/MYI • Music Intelligence/i)).toBeInTheDocument()
     })
 })
