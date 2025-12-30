@@ -143,7 +143,7 @@ export default function LandingPage() {
       {/* Bottom branding */}
       <div className="absolute bottom-6 text-center">
         <p className="text-xs text-white/20 tracking-widest">
-          MYI • Your Music Intelligence
+          MYI • Music Intelligence
         </p>
       </div>
     </div>

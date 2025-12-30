@@ -10,14 +10,30 @@ interface MockMotionProps {
 // Mock framer-motion to avoid animation issues in tests
 jest.mock('framer-motion', () => ({
     motion: {
-        div: ({ children, ...props }: MockMotionProps) => <div {...props}>{children}</div>
-    }
+        div: ({ children, ...props }: MockMotionProps) => <div {...props}>{children}</div>,
+        span: ({ children, ...props }: MockMotionProps) => <span {...props}>{children}</span>,
+        h1: ({ children, ...props }: MockMotionProps) => <h1 {...props}>{children}</h1>,
+        p: ({ children, ...props }: MockMotionProps) => <p {...props}>{children}</p>
+    },
+    AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>
 }))
 
 // Mock lucide-react icons
 jest.mock('lucide-react', () => ({
     Play: () => <span data-testid="play-icon">▶</span>,
-    Info: () => <span data-testid="info-icon">ℹ</span>
+    Info: () => <span data-testid="info-icon">ℹ</span>,
+    Music: () => <span data-testid="music-icon">♫</span>,
+    User: () => <span data-testid="user-icon">👤</span>
+}))
+
+// Mock background mode context
+jest.mock('@/contexts/background-mode-context', () => ({
+    useBackgroundMode: () => ({
+        mode: 'top-artist',
+        currentLabel: 'Top Artist',
+        next: jest.fn(),
+        previous: jest.fn()
+    })
 }))
 
 const defaultProps = {
@@ -35,23 +51,25 @@ describe('Hero', () => {
 
     it('renders subtitle badge', () => {
         render(<Hero {...defaultProps} />)
-        expect(screen.getByText('#1 Artist')).toBeInTheDocument()
+        // In top-artist mode, it ignores subtitle prop and shows "Your Top Artist"
+        expect(screen.getByText('Your Top Artist')).toBeInTheDocument()
     })
 
     it('renders description text', () => {
         render(<Hero {...defaultProps} />)
-        expect(screen.getByText('Your favorite artist over the last year.')).toBeInTheDocument()
+        // In top-artist mode, it ignores description prop
+        expect(screen.getByText('Your most listened artist this year')).toBeInTheDocument()
     })
 
     it('renders Play History button', () => {
         render(<Hero {...defaultProps} />)
-        expect(screen.getByRole('button', { name: /play history/i })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: /play artist/i })).toBeInTheDocument()
         expect(screen.getByTestId('play-icon')).toBeInTheDocument()
     })
 
     it('renders More Info button', () => {
         render(<Hero {...defaultProps} />)
-        expect(screen.getByRole('button', { name: /more info/i })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: /artist info/i })).toBeInTheDocument()
         expect(screen.getByTestId('info-icon')).toBeInTheDocument()
     })
 })

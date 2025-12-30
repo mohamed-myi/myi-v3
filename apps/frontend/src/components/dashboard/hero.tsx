@@ -11,10 +11,11 @@ interface HeroProps {
     image: string;  // Kept for compatibility, but background now handled by AppLayout
     songOfTheDayName?: string;
     songOfTheDayArtist?: string;
+    songOfTheDayContext?: string;
     topArtistName?: string;
 }
 
-export function Hero({ title, subtitle, description, songOfTheDayName, songOfTheDayArtist, topArtistName }: HeroProps) {
+export function Hero({ title, subtitle, description, songOfTheDayName, songOfTheDayArtist, songOfTheDayContext, topArtistName }: HeroProps) {
     const { mode } = useBackgroundMode();
 
     // Dynamic content based on mode
@@ -25,7 +26,7 @@ export function Hero({ title, subtitle, description, songOfTheDayName, songOfThe
             : title;
 
     const dynamicSubtitle = mode === "song-of-the-day"
-        ? "Song of the Day"
+        ? (songOfTheDayContext || "Song of the Day")
         : mode === "top-artist"
             ? "Your Top Artist"
             : subtitle;

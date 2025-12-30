@@ -385,7 +385,8 @@ export async function statsRoutes(fastify: FastifyInstance) {
                         artistSpotifyId: { type: 'string' },
                         image: { type: 'string', nullable: true },
                         playCount: { type: 'number' },
-                        isFallback: { type: 'boolean' }
+                        isFallback: { type: 'boolean' },
+                        context: { type: 'string' }
                     }
                 },
                 401: { type: 'object', properties: { error: { type: 'string' } } }
@@ -399,6 +400,7 @@ export async function statsRoutes(fastify: FastifyInstance) {
         const response = await getOrSet(cacheKey, CACHE_TTL, async () => {
             const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
+            // 1. Last 24 Hours
             const recentPlays = await prisma.listeningEvent.groupBy({
                 by: ['trackId'],
                 where: {
@@ -413,18 +415,66 @@ export async function statsRoutes(fastify: FastifyInstance) {
             let trackId: string | null = recentPlays[0]?.trackId || null;
             let playCount = recentPlays[0]?._count?.trackId || 0;
             let isFallback = false;
+            let context = "Most Played (Last 24h)";
 
+            // 2. Last 4 Weeks
+            if (!trackId) {
+                const topTrack = await prisma.spotifyTopTrack.findFirst({
+                    where: { userId, term: Term.SHORT_TERM },
+                    orderBy: { rank: 'asc' },
+                    include: { track: true }
+                });
+                if (topTrack) {
+                    trackId = topTrack.trackId;
+                    context = "Most Played (Last 4 Weeks)";
+                    isFallback = true;
+                }
+            }
+
+            // 3. Last 6 Months
+            if (!trackId) {
+                const topTrack = await prisma.spotifyTopTrack.findFirst({
+                    where: { userId, term: Term.MEDIUM_TERM },
+                    orderBy: { rank: 'asc' },
+                    include: { track: true }
+                });
+                if (topTrack) {
+                    trackId = topTrack.trackId;
+                    context = "Most Played (Last 6 Months)";
+                    isFallback = true;
+                }
+            }
+
+            // 4. Last Year
+            if (!trackId) {
+                const topTrack = await prisma.spotifyTopTrack.findFirst({
+                    where: { userId, term: Term.LONG_TERM },
+                    orderBy: { rank: 'asc' },
+                    include: { track: true }
+                });
+                if (topTrack) {
+                    trackId = topTrack.trackId;
+                    context = "Most Played (Last Year)";
+                    isFallback = true;
+                }
+            }
+
+            // 5. All Time
             if (!trackId) {
                 const allTimeMostPlayed = await prisma.userTrackStats.findFirst({
                     where: { userId },
                     orderBy: { playCount: 'desc' },
                     select: { trackId: true, playCount: true }
                 });
-                trackId = allTimeMostPlayed?.trackId || null;
-                playCount = allTimeMostPlayed?.playCount || 0;
-                isFallback = true;
+                if (allTimeMostPlayed) {
+                    trackId = allTimeMostPlayed.trackId;
+                    playCount = allTimeMostPlayed.playCount;
+                    context = "Most Played (All Time)";
+                    isFallback = true;
+                }
             }
 
+            // 6. No tracks played
             if (!trackId) {
                 return {
                     id: null,
@@ -434,7 +484,8 @@ export async function statsRoutes(fastify: FastifyInstance) {
                     artistSpotifyId: null,
                     image: null,
                     playCount: 0,
-                    isFallback: true
+                    isFallback: true,
+                    context: "Song of the Day"
                 };
             }
 
@@ -458,7 +509,8 @@ export async function statsRoutes(fastify: FastifyInstance) {
                     artistSpotifyId: null,
                     image: null,
                     playCount: 0,
-                    isFallback: true
+                    isFallback: true,
+                    context: "Song of the Day"
                 };
             }
 
@@ -472,7 +524,8 @@ export async function statsRoutes(fastify: FastifyInstance) {
                 artistSpotifyId: primaryArtist?.spotifyId || null,
                 image: track.album?.imageUrl || null,
                 playCount,
-                isFallback
+                isFallback,
+                context
             };
         });
 

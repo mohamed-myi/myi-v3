@@ -161,7 +161,7 @@ describe('AppLayout', () => {
         // All links should be visible in mobile menu
         expect(screen.getAllByText('Browse').length).toBeGreaterThanOrEqual(1)
         expect(screen.getAllByText('History').length).toBeGreaterThanOrEqual(1)
-        expect(screen.getAllByText('Stats').length).toBeGreaterThanOrEqual(1)
+        expect(screen.getAllByText('Profile').length).toBeGreaterThanOrEqual(1)
     })
 
     it('closes mobile menu when close button clicked', () => {

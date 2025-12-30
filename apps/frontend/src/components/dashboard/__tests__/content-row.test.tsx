@@ -39,7 +39,7 @@ describe('ContentRow', () => {
             render(
                 <ContentRow title="Top Artists" items={mockArtistItems} type="artist" />
             )
-            expect(screen.getByText('Top Artists')).toBeInTheDocument()
+            expect(screen.getAllByText('Top Artists').length).toBeGreaterThan(0)
         })
 
         it('renders correct number of items', () => {
@@ -77,15 +77,16 @@ describe('ContentRow', () => {
             render(
                 <ContentRow title="Empty Row" items={[]} type="artist" />
             )
-            expect(screen.getByText('Empty Row')).toBeInTheDocument()
+            expect(screen.getAllByText('Empty Row').length).toBeGreaterThan(0)
         })
 
         it('shows rank for artists when showRank is true', () => {
             render(
                 <ContentRow title="Top Artists" items={mockArtistItems} type="artist" showRank={true} />
             )
-            expect(screen.getByText('Rank #1')).toBeInTheDocument()
-            expect(screen.getByText('Rank #2')).toBeInTheDocument()
+            // Expect duplicates for desktop and mobile
+            expect(screen.getAllByText('Rank #1').length).toBeGreaterThan(0)
+            expect(screen.getAllByText('Rank #2').length).toBeGreaterThan(0)
         })
     })
 
@@ -119,7 +120,8 @@ describe('ContentRow', () => {
                 />
             )
 
-            fireEvent.click(screen.getByTestId('refresh-cw').closest('button')!)
+            // Multiple buttons due to responsive layout
+            fireEvent.click(screen.getAllByTestId('refresh-cw')[0].closest('button')!)
             expect(mockOnRefresh).toHaveBeenCalled()
         })
 
@@ -134,7 +136,7 @@ describe('ContentRow', () => {
                 />
             )
 
-            expect(screen.getByTestId('refresh-cw')).toHaveClass('animate-spin')
+            expect(screen.getAllByTestId('refresh-cw')[0]).toHaveClass('animate-spin')
         })
     })
 
@@ -150,7 +152,7 @@ describe('ContentRow', () => {
                 />
             )
 
-            expect(screen.getByText('Last 1 Year')).toBeInTheDocument()
+            expect(screen.getAllByRole('button', { name: /last 1 year/i }).length).toBeGreaterThan(0)
         })
 
         it('hides time range when showTimeRange is false', () => {
@@ -178,10 +180,10 @@ describe('ContentRow', () => {
                 />
             )
 
-            fireEvent.click(screen.getByText('Last 1 Year'))
+            fireEvent.click(screen.getAllByRole('button', { name: /last 1 year/i })[0])
 
-            expect(screen.getByText('Last 4 Weeks')).toBeInTheDocument()
-            expect(screen.getByText('Last 6 Months')).toBeInTheDocument()
+            expect(screen.getAllByText('Last 4 Weeks').length).toBeGreaterThan(0)
+            expect(screen.getAllByText('Last 6 Months').length).toBeGreaterThan(0)
         })
 
         it('shows All Time option when hasImportedHistory is true', () => {
@@ -197,8 +199,8 @@ describe('ContentRow', () => {
                 />
             )
 
-            fireEvent.click(screen.getByText('Last 1 Year'))
-            expect(screen.getByText('All Time')).toBeInTheDocument()
+            fireEvent.click(screen.getAllByRole('button', { name: /last 1 year/i })[0])
+            expect(screen.getAllByText('All Time').length).toBeGreaterThan(0)
         })
 
         it('changes selection and closes dropdown', () => {
@@ -215,8 +217,8 @@ describe('ContentRow', () => {
                 />
             )
 
-            fireEvent.click(screen.getByText('Last 1 Year'))
-            fireEvent.click(screen.getByText('Last 4 Weeks'))
+            fireEvent.click(screen.getAllByRole('button', { name: /last 1 year/i })[0])
+            fireEvent.click(screen.getAllByText('Last 4 Weeks')[0])
 
             expect(mockOnRangeChange).toHaveBeenCalledWith('4weeks')
         })

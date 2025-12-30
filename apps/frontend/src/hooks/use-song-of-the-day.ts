@@ -10,6 +10,7 @@ interface SongOfTheDayResponse {
     image: string | null;
     playCount: number;
     isFallback: boolean;
+    context: string;
 }
 
 export function useSongOfTheDay() {

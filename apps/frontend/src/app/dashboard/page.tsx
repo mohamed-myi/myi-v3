@@ -58,6 +58,7 @@ export default function DashboardPage() {
                     image={heroArtists?.[0]?.image || ""}
                     songOfTheDayName={songOfTheDay?.name}
                     songOfTheDayArtist={songOfTheDay?.artist}
+                    songOfTheDayContext={songOfTheDay?.context}
                     topArtistName={heroArtists?.[0]?.name}
                 />
 
