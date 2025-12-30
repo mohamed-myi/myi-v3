@@ -34,8 +34,8 @@ export default function DashboardPage() {
     // Song of the Day for background mode
     const { track: songOfTheDay } = useSongOfTheDay();
 
-    const { artists: topArtists, triggerManualRefresh: refreshArtists, isProcessing: isProcessingArtists } = useTopArtists(artistRange);
-    const { tracks: topTracks, triggerManualRefresh: refreshTracks, isProcessing: isProcessingTracks } = useTopTracks(trackRange);
+    const { artists: topArtists, triggerManualRefresh: refreshArtists, isProcessing: isProcessingArtists, isLoading: isLoadingArtists } = useTopArtists(artistRange);
+    const { tracks: topTracks, triggerManualRefresh: refreshTracks, isProcessing: isProcessingTracks, isLoading: isLoadingTracks } = useTopTracks(trackRange);
 
     const handleRefresh = async () => {
         setIsRefreshing(true);
@@ -43,7 +43,8 @@ export default function DashboardPage() {
         setTimeout(() => setIsRefreshing(false), 5000);
     };
 
-    if (isProcessingArtists || isProcessingTracks) {
+    // Show processing screen during initial load
+    if (isLoadingArtists || isLoadingTracks || isProcessingArtists || isProcessingTracks) {
         return <ProcessingScreen message="Syncing your top stats from Spotify..." />;
     }
 
