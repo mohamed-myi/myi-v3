@@ -1,9 +1,8 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import useSWR from 'swr';
 import { api, fetcher } from '@/lib/api';
 import type {
     ImportProgress,
-    ImportJob,
     ImportJobsResponse,
     FileUploadState,
     JobStatus,
@@ -19,17 +18,17 @@ export function useImport() {
     // Local queue of files waiting to be uploaded
     const [uploadQueue, setUploadQueue] = useState<File[]>([]);
 
-    // Files currently being uploaded or processed (with their job state)
-    const [uploads, setUploads] = useState<FileUploadState[]>([]);
-
-    // Job IDs that are actively being polled
-    const [activeJobIds, setActiveJobIds] = useState<string[]>([]);
-
-    // Derived state: do we have jobs that need polling?
-    const hasActiveJobs = activeJobIds.length > 0;
+    // Base upload state (without merged progress from polling)
+    const [baseUploads, setBaseUploads] = useState<FileUploadState[]>([]);
 
     // Track if we are in the middle of uploading files
     const [isUploading, setIsUploading] = useState(false);
+
+    // Track job IDs that have been confirmed as started (for polling)
+    const [startedJobIds, setStartedJobIds] = useState<string[]>([]);
+
+    // Ref to track previous completed jobs to trigger history refresh
+    const prevCompletedCountRef = useRef(0);
 
     // SWR for fetching import job history (History tab)
     const {
@@ -38,9 +37,43 @@ export function useImport() {
         isLoading: isLoadingJobs,
     } = useSWR<ImportJobsResponse>('/me/import/jobs?limit=20', fetcher);
 
+    // Derive which jobs are still active (not in terminal state)
+    const activeJobIds = useMemo(() => {
+        return startedJobIds.filter((jobId) => {
+            const upload = baseUploads.find((u) => u.jobId === jobId);
+            if (!upload) return false;
+            const status = upload.progress?.status;
+            return status && !isTerminalStatus(status);
+        });
+    }, [startedJobIds, baseUploads]);
+
+    const hasActiveJobs = activeJobIds.length > 0;
+
+    // Callback for when status poll succeeds - this is the subscription pattern
+    const handleStatusUpdate = useCallback((data: Record<string, ImportProgress>) => {
+        if (!data) return;
+
+        // Update baseUploads with terminal statuses from polling
+        setBaseUploads((prev) => {
+            let hasUpdates = false;
+            const updated = prev.map((upload) => {
+                if (upload.jobId && data[upload.jobId]) {
+                    const newStatus = data[upload.jobId].status;
+                    const oldStatus = upload.progress?.status;
+                    if (newStatus !== oldStatus && isTerminalStatus(newStatus)) {
+                        hasUpdates = true;
+                        return { ...upload, progress: data[upload.jobId] };
+                    }
+                }
+                return upload;
+            });
+            return hasUpdates ? updated : prev;
+        });
+    }, []);
+
     // SWR poller for active job status
     // Uses conditional refreshInterval: polls when hasActiveJobs, stops otherwise
-    const { data: statusData, mutate: mutateStatus } = useSWR<Record<string, ImportProgress>>(
+    const { data: statusData } = useSWR<Record<string, ImportProgress>>(
         hasActiveJobs ? ['import-status', activeJobIds] : null,
         async () => {
             const results: Record<string, ImportProgress> = {};
@@ -67,34 +100,32 @@ export function useImport() {
         {
             refreshInterval: hasActiveJobs ? POLL_INTERVAL : 0,
             revalidateOnFocus: false,
+            onSuccess: handleStatusUpdate,
         }
     );
 
-    // Update uploads state when status data changes
-    useEffect(() => {
-        if (!statusData) return;
-
-        setUploads((prev) =>
-            prev.map((upload) => {
-                if (upload.jobId && statusData[upload.jobId]) {
-                    return { ...upload, progress: statusData[upload.jobId] };
-                }
-                return upload;
-            })
-        );
-
-        // Remove terminal jobs from activeJobIds to stop polling
-        const stillActive = activeJobIds.filter((id) => {
-            const progress = statusData[id];
-            return progress && !isTerminalStatus(progress.status);
+    // Derive uploads with merged progress from status polling
+    const uploads = useMemo(() => {
+        if (!statusData) return baseUploads;
+        return baseUploads.map((upload) => {
+            if (upload.jobId && statusData[upload.jobId]) {
+                return { ...upload, progress: statusData[upload.jobId] };
+            }
+            return upload;
         });
+    }, [baseUploads, statusData]);
 
-        if (stillActive.length !== activeJobIds.length) {
-            setActiveJobIds(stillActive);
-            // Refresh history when jobs complete
+    // Refresh job history when jobs complete
+    const completedCount = uploads.filter(
+        (u) => u.progress?.status && isTerminalStatus(u.progress.status)
+    ).length;
+
+    useEffect(() => {
+        if (completedCount > prevCompletedCountRef.current) {
             mutateJobs();
         }
-    }, [statusData, activeJobIds, mutateJobs]);
+        prevCompletedCountRef.current = completedCount;
+    }, [completedCount, mutateJobs]);
 
     // Add files to upload queue
     const addFiles = useCallback((files: File[]) => {
@@ -109,8 +140,8 @@ export function useImport() {
 
     // Remove an upload from the active uploads list
     const removeUpload = useCallback((jobId: string) => {
-        setUploads((prev) => prev.filter((u) => u.jobId !== jobId));
-        setActiveJobIds((prev) => prev.filter((id) => id !== jobId));
+        setBaseUploads((prev) => prev.filter((u) => u.jobId !== jobId));
+        setStartedJobIds((prev) => prev.filter((id) => id !== jobId));
     }, []);
 
     // Start uploading all files in queue (parallel with individual error handling)
@@ -131,7 +162,7 @@ export function useImport() {
             },
         }));
 
-        setUploads((prev) => [...prev, ...newUploads]);
+        setBaseUploads((prev) => [...prev, ...newUploads]);
         setUploadQueue([]);
 
         // Upload all files in parallel with individual try/catch
@@ -157,7 +188,7 @@ export function useImport() {
         const results = await Promise.all(uploadPromises);
 
         // Update uploads with job IDs or errors
-        setUploads((prev) => {
+        setBaseUploads((prev) => {
             const updated = [...prev];
             const startIndex = prev.length - newUploads.length;
 
@@ -194,7 +225,7 @@ export function useImport() {
             .map((r) => r.jobId!);
 
         if (newJobIds.length > 0) {
-            setActiveJobIds((prev) => [...prev, ...newJobIds]);
+            setStartedJobIds((prev) => [...prev, ...newJobIds]);
         }
 
         setIsUploading(false);
@@ -202,7 +233,7 @@ export function useImport() {
 
     // Clear completed/failed uploads from the list
     const clearCompleted = useCallback(() => {
-        setUploads((prev) =>
+        setBaseUploads((prev) =>
             prev.filter((u) => {
                 const status = u.progress?.status;
                 return status && !isTerminalStatus(status);
@@ -213,8 +244,9 @@ export function useImport() {
     // Reset entire state (useful when modal closes)
     const reset = useCallback(() => {
         setUploadQueue([]);
-        setUploads([]);
-        setActiveJobIds([]);
+        setBaseUploads([]);
+        setStartedJobIds([]);
+        prevCompletedCountRef.current = 0;
     }, []);
 
     return {
@@ -243,4 +275,3 @@ export function useImport() {
         reset,
     };
 }
-

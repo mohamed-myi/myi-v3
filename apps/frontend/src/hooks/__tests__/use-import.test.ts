@@ -1,11 +1,11 @@
-import { renderHook, act, waitFor } from '@testing-library/react';
+import { renderHook, act } from '@testing-library/react';
 import { useImport } from '../use-import';
 import { api } from '@/lib/api';
 
 // Mock SWR
 jest.mock('swr', () => ({
     __esModule: true,
-    default: jest.fn((key, fetcher, options) => {
+    default: jest.fn((key) => {
         // Store the refreshInterval for testing
         const mockData = key === '/me/import/jobs?limit=20'
             ? { jobs: [], pagination: { total: 0, limit: 20, offset: 0 } }
