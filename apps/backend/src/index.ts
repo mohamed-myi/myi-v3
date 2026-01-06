@@ -82,6 +82,7 @@ export const build = async () => {
 };
 
 import { metadataWorker } from './workers/metadata-worker';
+import { closeImportWorker, importWorker } from './workers/import-worker';
 import { closeTopStatsWorker, setupTopStatsWorker } from './workers/top-stats-worker';
 import { HealingService } from './services/healing';
 
@@ -96,6 +97,9 @@ if (require.main === module) {
       setupSyncWorker();
       setupTopStatsWorker();
 
+      // Import worker is auto-initialized on import, just log it's ready
+      logger.info({ worker: importWorker.name }, 'Import worker initialized');
+
       logger.info('Server started, sync worker running');
 
       metadataWorker().catch(err => logger.error({ error: err }, 'Metadata Worker failed'));
@@ -106,6 +110,7 @@ if (require.main === module) {
         logger.info('Shutting down gracefully...');
         await closeSyncWorker();
         await closeTopStatsWorker();
+        await closeImportWorker();
         await closeRedis();
         await server.close();
         process.exit(0);

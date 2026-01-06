@@ -12,6 +12,11 @@ jest.mock('@/env', () => ({
     },
 }));
 
+jest.mock('@/workers/import-worker', () => ({
+    importWorker: { name: 'import-history', on: jest.fn(), close: jest.fn() },
+    closeImportWorker: jest.fn(),
+}));
+
 import { FastifyInstance } from 'fastify';
 import { prisma } from '../../../src/lib/prisma';
 import { redis } from '../../../src/lib/redis';
