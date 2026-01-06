@@ -14,14 +14,14 @@ interface ImportHistoryModalProps {
 type TabType = "upload" | "history";
 
 const statusStyles: Record<JobStatus, string> = {
-    PENDING: "bg-white/10 text-white/60",
+    PENDING: "bg-amber-500/20 text-amber-300",
     PROCESSING: "bg-mint-500/20 text-mint-300",
     COMPLETED: "bg-green-500/10 text-green-300",
     FAILED: "bg-red-500/10 text-red-300",
 };
 
 const statusLabels: Record<JobStatus, string> = {
-    PENDING: "Pending",
+    PENDING: "Queued",
     PROCESSING: "Processing",
     COMPLETED: "Completed",
     FAILED: "Failed",
@@ -211,6 +211,7 @@ function UploadItem({
 }) {
     const status = upload.progress?.status ?? "PENDING";
     const isTerminal = status === "COMPLETED" || status === "FAILED";
+    const isActive = status === "PENDING" || status === "PROCESSING";
     const hasTwoPhaseProgress = upload.progress?.phase !== undefined;
 
     return (
@@ -242,6 +243,13 @@ function UploadItem({
                 )}
             </div>
 
+            {status === "PENDING" && (
+                <div className="flex items-center gap-2 text-xs text-amber-300/80">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Waiting in queue...</span>
+                </div>
+            )}
+
             {status === "PROCESSING" && upload.progress && (
                 hasTwoPhaseProgress ? (
                     <TwoPhaseProgress progress={upload.progress} />
@@ -251,6 +259,13 @@ function UploadItem({
                         total={upload.progress.totalRecords}
                     />
                 )
+            )}
+
+            {isActive && upload.jobId && (
+                <p className="text-xs text-white/40 flex items-center gap-1.5">
+                    <Check className="w-3 h-3 text-green-400" />
+                    Safe to close. Import continues in background.
+                </p>
             )}
 
             {status === "COMPLETED" && upload.progress && (
@@ -277,6 +292,8 @@ function UploadItem({
 }
 
 function JobItem({ job }: { job: ImportJob }) {
+    const isActive = job.status === "PENDING" || job.status === "PROCESSING";
+    
     return (
         <div className="p-4 rounded-xl backdrop-blur-md bg-white/5 border border-white/10">
             <div className="flex items-start gap-3">
@@ -295,6 +312,9 @@ function JobItem({ job }: { job: ImportJob }) {
                         <span>{formatDate(job.createdAt)}</span>
                         {job.status === "COMPLETED" && (
                             <span>{formatNumber(job.processedEvents)} events</span>
+                        )}
+                        {isActive && (
+                            <span className="text-mint-400/70">Processing in background</span>
                         )}
                     </div>
                     {job.errorMessage && (

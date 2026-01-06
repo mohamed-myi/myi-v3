@@ -6,6 +6,7 @@ import { topStatsQueue } from '../workers/top-stats-queue';
 import { hoursAgo, daysAgo } from '../services/top-stats-service';
 import { ensurePartitionForDate, enforcePartitionIndexes } from '../lib/partitions';
 import { logger } from '../lib/logger';
+import { JobStatus } from '@prisma/client';
 
 const log = logger.child({ module: 'CronRoutes' });
 
@@ -265,5 +266,69 @@ export async function cronRoutes(fastify: FastifyInstance): Promise<void> {
         });
 
         return { success: true, partitions: formatted };
+    });
+
+    // POST /cron/cleanup-stale-imports
+    // Marks 'PENDING' import jobs older than 5 minutes as 'FAILED'
+    // This handles orphan records where DB create succeeded but queue add failed
+    fastify.post('/cron/cleanup-stale-imports', {
+        schema: {
+            description: 'Clean up stale import jobs that failed to queue',
+            tags: ['Cron'],
+            headers: {
+                type: 'object',
+                properties: {
+                    'x-cron-secret': { type: 'string' }
+                },
+                required: ['x-cron-secret']
+            },
+            response: {
+                200: {
+                    type: 'object',
+                    properties: {
+                        success: { type: 'boolean' },
+                        cleaned: { type: 'number' },
+                        message: { type: 'string' }
+                    }
+                },
+                401: { type: 'object', properties: { error: { type: 'string' } } }
+            }
+        }
+    }, async (request, reply) => {
+        const cronSecret = request.headers['x-cron-secret'];
+        if (cronSecret !== process.env.CRON_SECRET) {
+            log.warn({ event: 'cron_unauthorized' }, 'Unauthorized cleanup-stale-imports request');
+            return reply.status(401).send({ error: 'Unauthorized' });
+        }
+
+        const STALE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
+        const staleThreshold = new Date(Date.now() - STALE_THRESHOLD_MS);
+
+        const result = await prisma.importJob.updateMany({
+            where: {
+                status: JobStatus.PENDING,
+                createdAt: { lt: staleThreshold },
+            },
+            data: {
+                status: JobStatus.FAILED,
+                errorMessage: 'Upload interrupted or failed to queue.',
+                completedAt: new Date(),
+            },
+        });
+
+        if (result.count > 0) {
+            log.info(
+                { event: 'cron_cleanup_stale_imports', count: result.count },
+                `Cleaned up ${result.count} stale import jobs`
+            );
+        }
+
+        return {
+            success: true,
+            cleaned: result.count,
+            message: result.count > 0
+                ? `Cleaned up ${result.count} stale import jobs`
+                : 'No stale import jobs found',
+        };
     });
 }

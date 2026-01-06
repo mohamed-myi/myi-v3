@@ -1,9 +1,14 @@
+import { randomUUID } from 'crypto';
 import { FastifyInstance } from 'fastify';
 import { prisma } from '../lib/prisma';
+import { logger } from '../lib/logger';
 import { getImportProgress, getImportProgressFromDB } from '../services/import';
 import type { ImportJob } from '../workers/import-worker';
 import { IMPORT_RATE_LIMIT } from '../middleware/rate-limit';
 import { importQueue } from '../workers/queues';
+import { JobStatus } from '@prisma/client';
+
+const log = logger.child({ module: 'ImportRoutes' });
 
 // JSON Schema for status endpoint
 const statusSchema = {
@@ -47,24 +52,55 @@ export async function importRoutes(fastify: FastifyInstance) {
         const buffer = await data.toBuffer();
         const fileData = buffer.toString('base64');
 
-        const jobId = `import_${userId}_${Date.now()}`;
+        // Use UUID for collision resistance while preserving userId prefix for ownership validation
+        const jobId = `import_${userId}_${randomUUID()}`;
 
-        await importQueue.add('import-endsong', {
-            userId,
-            jobId,
-            fileData,
-            fileName: data.filename,
-        }, {
-            jobId,
-            removeOnComplete: true,
-            removeOnFail: 24 * 3600,
-        });
+        try {
+            // Create ImportJob record immediately with PENDING status
+            // This ensures the job is visible in the UI before the worker picks it up
+            await prisma.importJob.create({
+                data: {
+                    id: jobId,
+                    userId,
+                    fileName: data.filename,
+                    status: JobStatus.PENDING,
+                },
+            });
 
-        return {
-            message: 'Import started',
-            jobId,
-            statusUrl: `/api/me/import/status?jobId=${jobId}`
-        };
+            try {
+                await importQueue.add('import-endsong', {
+                    userId,
+                    jobId,
+                    fileData,
+                    fileName: data.filename,
+                }, {
+                    jobId,
+                    removeOnComplete: true,
+                    removeOnFail: 24 * 3600,
+                });
+            } catch (queueError) {
+                // Queue failed after DB create; mark as failed immediately to avoid orphan
+                log.error({ error: queueError, jobId }, 'Failed to add import job to queue');
+                await prisma.importJob.update({
+                    where: { id: jobId },
+                    data: {
+                        status: JobStatus.FAILED,
+                        errorMessage: 'Failed to queue import job',
+                        completedAt: new Date(),
+                    },
+                });
+                throw queueError;
+            }
+
+            return {
+                message: 'Import queued',
+                jobId,
+                statusUrl: `/api/me/import/status?jobId=${jobId}`
+            };
+        } catch (error) {
+            log.error({ error, jobId }, 'Import upload failed');
+            return reply.status(500).send({ error: 'Failed to start import' });
+        }
     });
 
     // Get import job status
@@ -81,8 +117,8 @@ export async function importRoutes(fastify: FastifyInstance) {
 
         // If Redis has data, validate ownership via jobId format
         if (progress) {
-            // Job IDs are formatted as: import_{userId}_{timestamp}
-            if (!jobId.includes(`import_${userId}_`)) {
+            // Job IDs are formatted as: import_{userId}_{uuid}
+            if (!jobId.startsWith(`import_${userId}_`)) {
                 return reply.status(403).send({ error: 'Access denied' });
             }
             return progress;
