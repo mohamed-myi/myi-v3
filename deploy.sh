@@ -9,16 +9,16 @@ echo "Pulling latest code..."
 git pull origin main
 
 echo "Installing dependencies..."
-pnpm install
+npm ci
 
 echo "Building backend..."
-cd apps/backend && pnpm run build && cd ../..
+npm run build --workspace=backend
 
 echo "Building frontend..."
-cd apps/frontend && pnpm run build && cd ../..
+npm run build --workspace=frontend
 
 echo "Restarting services..."
-pm2 restart all
+pm2 restart all --update-env
 
 echo "Deployment complete!"
 pm2 status
