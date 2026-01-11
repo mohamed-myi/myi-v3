@@ -149,3 +149,135 @@ export function resetImportRateLimiter(): void {
     }
 }
 
+
+import { redis } from './redis';
+import { prisma } from './prisma';
+
+// Exported constants for playlist rate limits
+export const MAX_PENDING_JOBS = 5;
+export const MAX_JOBS_PER_HOUR = 10;
+
+// Redis key prefixes for playlist rate limiting
+const PENDING_KEY_PREFIX = 'playlist_rate:pending:';
+const HOURLY_KEY_PREFIX = 'playlist_rate:hourly:';
+const PENDING_TTL = 3600; // 1 hour safety TTL
+
+export interface PlaylistRateLimitResult {
+    allowed: boolean;
+    pendingCount?: number;
+    hourlyCount?: number;
+    error?: string;
+}
+
+/**
+ * Atomically acquire a job slot for a user.
+ * 
+ * Uses Redis INCR which is atomic - no two requests can get the same count.
+ * If the count exceeds the limit, we immediately decrement to rollback.
+ * 
+ * IMPORTANT: Call releaseJobSlot when the job completes or fails.
+ */
+export async function tryAcquireJobSlot(userId: string): Promise<PlaylistRateLimitResult> {
+    try {
+        const pendingKey = `${PENDING_KEY_PREFIX}${userId}`;
+        const hourlyKey = `${HOURLY_KEY_PREFIX}${userId}`;
+
+        // Atomic increment of pending count
+        const newPendingCount = await redis.incr(pendingKey);
+
+        // Set TTL on first increment
+        if (newPendingCount === 1) {
+            await redis.expire(pendingKey, PENDING_TTL);
+        }
+
+        // Check if we exceeded pending limit - rollback if so
+        if (newPendingCount > MAX_PENDING_JOBS) {
+            await redis.decr(pendingKey);
+            logger.info({ userId, pendingCount: MAX_PENDING_JOBS }, 'Playlist rate limit hit: max pending');
+            return {
+                allowed: false,
+                pendingCount: MAX_PENDING_JOBS,
+                error: `Maximum ${MAX_PENDING_JOBS} pending jobs allowed`,
+            };
+        }
+
+        // Atomic increment of hourly count
+        const hourlyCount = await redis.incr(hourlyKey);
+        if (hourlyCount === 1) {
+            await redis.expire(hourlyKey, 3600);
+        }
+
+        // Check hourly limit - rollback both if exceeded
+        if (hourlyCount > MAX_JOBS_PER_HOUR) {
+            await redis.decr(pendingKey);
+            await redis.decr(hourlyKey);
+            logger.info({ userId, hourlyCount: MAX_JOBS_PER_HOUR }, 'Playlist rate limit hit: max hourly');
+            return {
+                allowed: false,
+                hourlyCount: MAX_JOBS_PER_HOUR,
+                error: `Maximum ${MAX_JOBS_PER_HOUR} jobs per hour`,
+            };
+        }
+
+        logger.debug({ userId, pendingCount: newPendingCount, hourlyCount }, 'Playlist job slot acquired');
+        return { allowed: true, pendingCount: newPendingCount, hourlyCount };
+
+    } catch (error) {
+        logger.warn({ error, userId }, 'Redis unavailable for playlist rate limiting, using database fallback');
+        return checkPlaylistRateLimitsFallback(userId);
+    }
+}
+
+/**
+ * Release a job slot when a job completes or fails.
+ */
+export async function releaseJobSlot(userId: string): Promise<void> {
+    try {
+        const pendingKey = `${PENDING_KEY_PREFIX}${userId}`;
+        const current = await redis.decr(pendingKey);
+
+        // Prevent negative counts
+        if (current < 0) {
+            await redis.set(pendingKey, '0', 'EX', PENDING_TTL);
+        }
+
+        logger.debug({ userId, pendingCount: Math.max(0, current) }, 'Playlist job slot released');
+    } catch (error) {
+        logger.warn({ error, userId }, 'Failed to release playlist job slot in Redis');
+    }
+}
+
+/**
+ * Fallback rate limit check using database when Redis is unavailable.
+ */
+async function checkPlaylistRateLimitsFallback(userId: string): Promise<PlaylistRateLimitResult> {
+    const pendingCount = await prisma.playlistJob.count({
+        where: {
+            userId,
+            status: { in: ['PENDING', 'CREATING', 'ADDING_TRACKS', 'UPLOADING_IMAGE'] },
+        },
+    });
+
+    if (pendingCount >= MAX_PENDING_JOBS) {
+        return {
+            allowed: false,
+            pendingCount,
+            error: `Maximum ${MAX_PENDING_JOBS} pending jobs allowed`,
+        };
+    }
+
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const hourlyCount = await prisma.playlistJob.count({
+        where: { userId, createdAt: { gte: oneHourAgo } },
+    });
+
+    if (hourlyCount >= MAX_JOBS_PER_HOUR) {
+        return {
+            allowed: false,
+            hourlyCount,
+            error: `Maximum ${MAX_JOBS_PER_HOUR} jobs per hour`,
+        };
+    }
+
+    return { allowed: true, pendingCount, hourlyCount };
+}

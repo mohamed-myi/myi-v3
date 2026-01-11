@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useUser } from "@/hooks/use-dashboard";
 import { Skeleton } from "@/components/ui/skeleton";
 import Image from "next/image";
-import { Play } from "lucide-react";
+import { Play, Sparkles } from "lucide-react";
 
 export default function LandingPage() {
   const router = useRouter();
@@ -131,10 +131,21 @@ export default function LandingPage() {
             )}
           </button>
 
+          {/* Try Demo Button for unauthenticated */}
+          {!isAuthenticated && !isLoading && (
+            <a
+              href="/api/auth/demo"
+              className="flex items-center gap-2 px-6 py-3 rounded-full backdrop-blur-md bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-white/80 hover:text-white text-sm transition-all duration-300"
+            >
+              <Sparkles className="w-4 h-4" />
+              Try Demo
+            </a>
+          )}
+
           {/* Footer note */}
           {!isAuthenticated && !isLoading && (
             <p className="text-xs text-white/30 mt-4">
-              Connect your Spotify account to see your stats
+              Connect your Spotify account or explore with demo data
             </p>
           )}
         </motion.div>

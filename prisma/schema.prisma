@@ -31,6 +31,29 @@ enum JobStatus {
   FAILED
 }
 
+enum PlaylistCreationMethod {
+  SHUFFLE
+  TOP_50_SHORT
+  TOP_50_MEDIUM
+  TOP_50_LONG
+  TOP_50_ALL_TIME
+  TOP_K_RECENT
+}
+
+enum PlaylistJobStatus {
+  PENDING
+  CREATING
+  ADDING_TRACKS
+  UPLOADING_IMAGE
+  COMPLETED
+  FAILED
+}
+
+enum ShuffleMode {
+  TRULY_RANDOM
+  LESS_REPETITION
+}
+
 model User {
   id              String   @id @default(cuid())
   spotifyId       String   @unique @map("spotify_id")
@@ -38,6 +61,7 @@ model User {
   email           String?
   imageUrl        String?  @map("image_url")
   country         String?
+  isDemo          Boolean  @default(false) @map("is_demo")
   createdAt       DateTime @default(now()) @map("created_at")
   lastIngestedAt  DateTime? @map("last_ingested_at")
   lastLoginAt     DateTime? @map("last_login_at")
@@ -55,6 +79,7 @@ model User {
   timeBucketStats UserTimeBucketStats[]
   hourStats       UserHourStats[]
   importJobs      ImportJob[]
+  playlistJobs    PlaylistJob[]
   spotifyTopTracks SpotifyTopTrack[]
   spotifyTopArtists SpotifyTopArtist[]
 
@@ -232,6 +257,53 @@ model ImportJob {
 
   @@index([userId, createdAt(sort: Desc)])
   @@map("import_jobs")
+}
+
+model PlaylistJob {
+  id                  String                 @id @default(cuid())
+  userId              String                 @map("user_id")
+  creationMethod      PlaylistCreationMethod @map("creation_method")
+  status              PlaylistJobStatus      @default(PENDING)
+  
+  // Input params
+  name                String
+  isPublic            Boolean                @default(false) @map("is_public")
+  coverImageBase64    String?                @map("cover_image_base64")
+  
+  // Method-specific params
+  sourcePlaylistId    String?                @map("source_playlist_id")
+  shuffleMode         ShuffleMode?           @map("shuffle_mode")
+  kValue              Int?                   @map("k_value")
+  startDate           DateTime?              @map("start_date")
+  endDate             DateTime?              @map("end_date")
+
+  // Idempotency - derived from confirmation token hash
+  idempotencyKey      String?                @unique @map("idempotency_key")
+  
+  // Progress tracking
+  totalTracks         Int                    @default(0) @map("total_tracks")
+  addedTracks         Int                    @default(0) @map("added_tracks")
+  estimatedTracks     Int?                   @map("estimated_tracks")
+  
+  // Reliability tracking
+  retryCount          Int                    @default(0) @map("retry_count")
+  rateLimitDelays     Int                    @default(0) @map("rate_limit_delays")
+  lastHeartbeatAt     DateTime?              @map("last_heartbeat_at")
+  processingTimeMs    Int?                   @map("processing_time_ms")
+  
+  // Result
+  spotifyPlaylistId   String?                @map("spotify_playlist_id")
+  spotifyPlaylistUrl  String?                @map("spotify_playlist_url")
+  errorMessage        String?                @map("error_message")
+  
+  startedAt           DateTime?              @map("started_at")
+  completedAt         DateTime?              @map("completed_at")
+  createdAt           DateTime               @default(now()) @map("created_at")
+  
+  user                User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("playlist_jobs")
 }
 
 model UserSettings {

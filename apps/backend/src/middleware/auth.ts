@@ -16,6 +16,7 @@ const COOKIE_OPTIONS = {
 declare module 'fastify' {
     interface FastifyRequest {
         userId?: string;
+        isDemo?: boolean;
     }
 }
 
@@ -39,7 +40,7 @@ export async function authMiddleware(
     // Validate user exists
     const user = await prisma.user.findUnique({
         where: { id: sessionUserId },
-        select: { id: true },
+        select: { id: true, isDemo: true },
     });
 
     if (!user) {
@@ -56,6 +57,7 @@ export async function authMiddleware(
         httpOnly: false,
     });
 
-    // Attach user ID to request for downstream handlers
+    // Attach user ID and demo status to request for downstream handlers
     request.userId = sessionUserId;
+    request.isDemo = user.isDemo;
 }

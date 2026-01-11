@@ -21,4 +21,5 @@ export interface UserProfile {
     displayName: string;
     image: string;
     hasImportedHistory?: boolean;
+    isDemo?: boolean;
 }

@@ -91,6 +91,67 @@ export async function isTopStatsHydrated(userId: string): Promise<boolean> {
     return user !== null && user.topStatsRefreshedAt !== null;
 }
 
+// Cache freshness for playlist creation
+export const CACHE_MAX_AGE_MS = 60 * 60 * 1000; // 1 hour
+
+/**
+ * Check if the top stats cache is fresh (refreshed within CACHE_MAX_AGE_MS).
+ * Used to avoid unnecessary refreshes when creating playlists.
+ */
+export async function isCacheFresh(userId: string): Promise<boolean> {
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { topStatsRefreshedAt: true }
+    });
+
+    if (!user || !user.topStatsRefreshedAt) {
+        return false;
+    }
+
+    const cacheAge = Date.now() - user.topStatsRefreshedAt.getTime();
+    return cacheAge < CACHE_MAX_AGE_MS;
+}
+
+/**
+ * Ensures top tracks are cached and fresh for playlist creation.
+ * If cache is stale or missing, triggers a synchronous refresh.
+ * Returns track count from cache after ensuring freshness.
+ * 
+ * @param userId - The user ID
+ * @param term - The time range term ('short', 'medium', 'long')
+ * @returns Track count and whether cache was refreshed
+ */
+export async function ensureTopTracksCached(
+    userId: string,
+    term: 'short' | 'medium' | 'long'
+): Promise<{ trackCount: number; cacheRefreshed: boolean }> {
+    const termMap = {
+        short: Term.SHORT_TERM,
+        medium: Term.MEDIUM_TERM,
+        long: Term.LONG_TERM,
+    } as const;
+    const dbTerm = termMap[term];
+
+    // Check if cache is fresh
+    const fresh = await isCacheFresh(userId);
+    let cacheRefreshed = false;
+
+    if (!fresh) {
+        // Synchronously refresh cache before returning
+        log.info({ userId, term }, 'Top stats cache stale, refreshing before playlist creation');
+        await processUserTopStats(userId);
+        cacheRefreshed = true;
+    }
+
+    // Get count from cache
+    const trackCount = await prisma.spotifyTopTrack.count({
+        where: { userId, term: dbTerm },
+    });
+
+    // Cap at 50 for TOP_50 playlists
+    return { trackCount: Math.min(trackCount, 50), cacheRefreshed };
+}
+
 interface RawSpotifyTrack {
     spotifyId: string;
     name: string;

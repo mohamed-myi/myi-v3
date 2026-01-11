@@ -10,6 +10,10 @@ const SCOPES = [
     'user-read-private',
     'user-top-read',
     'user-read-email',
+    'playlist-read-private',
+    'playlist-read-collaborative',
+    'playlist-modify-public',
+    'playlist-modify-private',
 ].join(' ');
 
 function getClientCredentials() {

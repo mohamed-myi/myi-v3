@@ -9,6 +9,10 @@ import type {
     SpotifyAlbum,
     SpotifyTracksBatchResponse,
     SpotifyAlbumsBatchResponse,
+    SpotifyUserPlaylistsResponse,
+    SpotifyPlaylistTracksResponse,
+    SpotifyCreatePlaylistResponse,
+    SpotifyAddTracksResponse,
 } from '../types/spotify';
 import {
     SpotifyApiError,
@@ -206,4 +210,93 @@ export async function searchTracks(
     const url = `${SPOTIFY_API_URL}/search?${params.toString()}`;
     const response = await fetchWithRetry<SpotifySearchResult>(url, accessToken);
     return response.tracks.items;
+}
+
+// Playlist API functions
+
+export async function getUserPlaylists(
+    accessToken: string,
+    limit: number = 50,
+    offset: number = 0
+): Promise<SpotifyUserPlaylistsResponse> {
+    const params = new URLSearchParams({
+        limit: String(Math.min(limit, 50)),
+        offset: String(offset),
+    });
+    const url = `${SPOTIFY_API_URL}/me/playlists?${params.toString()}`;
+    return fetchWithRetry<SpotifyUserPlaylistsResponse>(url, accessToken);
+}
+
+export async function getPlaylistTracks(
+    accessToken: string,
+    playlistId: string,
+    limit: number = 100,
+    offset: number = 0
+): Promise<SpotifyPlaylistTracksResponse> {
+    const params = new URLSearchParams({
+        limit: String(Math.min(limit, 100)),
+        offset: String(offset),
+    });
+    const url = `${SPOTIFY_API_URL}/playlists/${encodeURIComponent(playlistId)}/tracks?${params.toString()}`;
+    return fetchWithRetry<SpotifyPlaylistTracksResponse>(url, accessToken);
+}
+
+export interface CreatePlaylistOptions {
+    name: string;
+    isPublic?: boolean;
+    description?: string;
+}
+
+export async function createPlaylist(
+    accessToken: string,
+    spotifyUserId: string,
+    options: CreatePlaylistOptions
+): Promise<SpotifyCreatePlaylistResponse> {
+    const url = `${SPOTIFY_API_URL}/users/${encodeURIComponent(spotifyUserId)}/playlists`;
+    return fetchWithRetry<SpotifyCreatePlaylistResponse>(url, accessToken, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            name: options.name,
+            public: options.isPublic ?? false,
+            description: options.description,
+        }),
+    });
+}
+
+export async function addTracksToPlaylist(
+    accessToken: string,
+    playlistId: string,
+    trackUris: string[]
+): Promise<SpotifyAddTracksResponse> {
+    if (trackUris.length > 100) {
+        throw new Error('Cannot add more than 100 tracks at once');
+    }
+    const url = `${SPOTIFY_API_URL}/playlists/${encodeURIComponent(playlistId)}/tracks`;
+    return fetchWithRetry<SpotifyAddTracksResponse>(url, accessToken, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ uris: trackUris }),
+    });
+}
+
+export async function uploadPlaylistCover(
+    accessToken: string,
+    playlistId: string,
+    base64Image: string
+): Promise<void> {
+    // Spotify expects raw base64 without data URI prefix
+    const imageData = base64Image.replace(/^data:image\/\w+;base64,/, '');
+    const url = `${SPOTIFY_API_URL}/playlists/${encodeURIComponent(playlistId)}/images`;
+    await fetchWithRetry<void>(url, accessToken, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'image/jpeg',
+        },
+        body: imageData,
+    });
 }

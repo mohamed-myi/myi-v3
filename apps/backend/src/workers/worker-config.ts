@@ -20,3 +20,17 @@ export const ARTIST_METADATA_JOB_OPTIONS = {
 };
 
 export const DLQ_SUFFIX = ':dlq';
+
+/**
+ * Playlist worker concurrency is kept low (2) because each job makes many
+ * Spotify API calls: 1 create + N add tracks batches + 1 cover upload.
+ * With 10K track playlists, that's 100+ API calls per job.
+ */
+export const PLAYLIST_WORKER_CONFIG = {
+    concurrency: 2,
+    limiter: {
+        max: 10,           // Max 10 jobs per duration
+        duration: 60000,   // Per minute
+    },
+};
+

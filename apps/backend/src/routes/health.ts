@@ -5,6 +5,7 @@ import {
     isSyncWorkerRunning,
     isMetadataWorkerRunning,
     isTopStatsWorkerRunning,
+    isPlaylistWorkerRunning,
 } from '@/workers/worker-status';
 
 type HealthStatus = 'healthy' | 'degraded' | 'unhealthy';
@@ -21,6 +22,7 @@ interface DetailedHealthResponse {
             sync: WorkerStatus;
             metadata: WorkerStatus;
             topStats: WorkerStatus;
+            playlist: WorkerStatus;
         };
     };
 }
@@ -46,6 +48,7 @@ export async function healthRoutes(server: FastifyInstance) {
             sync: isSyncWorkerRunning() ? 'running' as const : 'stopped' as const,
             metadata: isMetadataWorkerRunning() ? 'running' as const : 'stopped' as const,
             topStats: isTopStatsWorkerRunning() ? 'running' as const : 'stopped' as const,
+            playlist: isPlaylistWorkerRunning() ? 'running' as const : 'stopped' as const,
         };
 
         // Determine overall status

@@ -8,6 +8,7 @@ const mockPingRedis = jest.fn();
 const mockIsSyncWorkerRunning = jest.fn();
 const mockIsMetadataWorkerRunning = jest.fn();
 const mockIsTopStatsWorkerRunning = jest.fn();
+const mockIsPlaylistWorkerRunning = jest.fn();
 
 jest.mock('../../src/lib/db', () => ({
     checkDatabaseHealth: mockCheckDatabaseHealth,
@@ -23,6 +24,7 @@ jest.mock('../../src/workers/worker-status', () => ({
     isSyncWorkerRunning: mockIsSyncWorkerRunning,
     isMetadataWorkerRunning: mockIsMetadataWorkerRunning,
     isTopStatsWorkerRunning: mockIsTopStatsWorkerRunning,
+    isPlaylistWorkerRunning: mockIsPlaylistWorkerRunning,
 }));
 
 import Fastify, { FastifyInstance } from 'fastify';
@@ -64,6 +66,7 @@ describe('Health Routes', () => {
             mockIsSyncWorkerRunning.mockReturnValue(true);
             mockIsMetadataWorkerRunning.mockReturnValue(true);
             mockIsTopStatsWorkerRunning.mockReturnValue(true);
+            mockIsPlaylistWorkerRunning.mockReturnValue(true);
 
             const response = await app.inject({
                 method: 'GET',
@@ -76,6 +79,7 @@ describe('Health Routes', () => {
             expect(body.checks.database.status).toBe('up');
             expect(body.checks.redis.status).toBe('up');
             expect(body.checks.workers.sync).toBe('running');
+            expect(body.checks.workers.playlist).toBe('running');
         });
 
         it('returns unhealthy when database is down', async () => {
@@ -84,6 +88,7 @@ describe('Health Routes', () => {
             mockIsSyncWorkerRunning.mockReturnValue(true);
             mockIsMetadataWorkerRunning.mockReturnValue(true);
             mockIsTopStatsWorkerRunning.mockReturnValue(true);
+            mockIsPlaylistWorkerRunning.mockReturnValue(true);
 
             const response = await app.inject({
                 method: 'GET',
@@ -102,6 +107,7 @@ describe('Health Routes', () => {
             mockIsSyncWorkerRunning.mockReturnValue(true);
             mockIsMetadataWorkerRunning.mockReturnValue(true);
             mockIsTopStatsWorkerRunning.mockReturnValue(true);
+            mockIsPlaylistWorkerRunning.mockReturnValue(true);
 
             const response = await app.inject({
                 method: 'GET',
@@ -120,6 +126,7 @@ describe('Health Routes', () => {
             mockIsSyncWorkerRunning.mockReturnValue(true);
             mockIsMetadataWorkerRunning.mockReturnValue(false);
             mockIsTopStatsWorkerRunning.mockReturnValue(true);
+            mockIsPlaylistWorkerRunning.mockReturnValue(true);
 
             const response = await app.inject({
                 method: 'GET',

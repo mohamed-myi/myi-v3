@@ -10,7 +10,9 @@ import { useUser, useTopArtists } from "@/hooks/use-dashboard";
 import { useSongOfTheDay } from "@/hooks/use-song-of-the-day";
 import { ImportHistoryModal } from "@/components/ImportHistoryModal";
 import { LogoutConfirmationDialog } from "@/components/ui/logout-confirmation-dialog";
+import { DemoBanner } from "@/components/ui/demo-banner";
 import { BackgroundModeProvider, useBackgroundMode } from "@/contexts/background-mode-context";
+import { useDemoMode } from "@/hooks/use-demo-mode";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface AppLayoutProps {
@@ -36,6 +38,7 @@ function AppLayoutInner({ children }: AppLayoutProps) {
     const [isLogoutOpen, setIsLogoutOpen] = React.useState(false);
 
     const { mode, next, previous } = useBackgroundMode();
+    const { isDemo } = useDemoMode();
 
     const { artists } = useTopArtists("year");
     const { image: songImage } = useSongOfTheDay();
@@ -73,12 +76,15 @@ function AppLayoutInner({ children }: AppLayoutProps) {
     }, [isMobileMenuOpen]);
 
     const navLinks = [
+        { href: "/dashboard/playlists", label: "Playlists" },
         { href: "/dashboard", label: "Browse" },
         { href: "/dashboard/history", label: "History" },
     ];
 
     return (
         <div className="min-h-screen flex flex-col bg-black text-white selection:bg-primary/30">
+            {/* Demo Mode Banner */}
+            <DemoBanner />
             {/* Fixed Persistent Background Image with Fade Animation */}
             <AnimatePresence mode="wait">
                 {backgroundImage && (
@@ -114,7 +120,8 @@ function AppLayoutInner({ children }: AppLayoutProps) {
                 {/* Sticky Top Navigation - Glassmorphic */}
                 <header
                     className={cn(
-                        "fixed top-0 left-0 right-0 z-50 transition-all duration-300",
+                        "fixed left-0 right-0 z-50 transition-all duration-300",
+                        isDemo ? "top-10" : "top-0",
                         scrolled
                             ? "backdrop-blur-xl bg-white/5 border-b border-white/10"
                             : "bg-transparent"
@@ -227,7 +234,7 @@ function AppLayoutInner({ children }: AppLayoutProps) {
 
                 {/* Mobile Menu Overlay */}
                 {isMobileMenuOpen && (
-                    <div className="fixed inset-0 z-[60] md:hidden">
+                    <div className="fixed inset-0 z-[100] md:hidden">
                         {/* Backdrop */}
                         <div
                             className="absolute inset-0 bg-black/80 backdrop-blur-md animate-fade-in"
@@ -326,7 +333,7 @@ function AppLayoutInner({ children }: AppLayoutProps) {
                 )}
 
                 {/* Main Content */}
-                <main className="flex-1 pt-20 pb-20 relative z-0">
+                <main className={cn("flex-1 pb-20 relative z-0", isDemo ? "pt-28" : "pt-20")}>
                     {children}
                 </main>
 

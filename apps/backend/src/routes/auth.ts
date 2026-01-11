@@ -15,6 +15,7 @@ import { cacheAccessToken } from '../lib/token-manager';
 import { AUTH_RATE_LIMIT } from '../middleware/rate-limit';
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
+const DEMO_USER_ID = 'demo_user_fixed_id';
 const COOKIE_OPTIONS = {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
@@ -209,6 +210,50 @@ export async function authRoutes(fastify: FastifyInstance) {
         return { success: true };
     });
 
+    // Demo mode session - no OAuth required
+    fastify.get('/auth/demo', {
+        config: { rateLimit: AUTH_RATE_LIMIT },
+        schema: {
+            description: 'Create demo session without Spotify authentication',
+            tags: ['Auth'],
+            response: {
+                302: { description: 'Redirects to dashboard with demo session' },
+                503: {
+                    type: 'object',
+                    properties: {
+                        error: { type: 'string' },
+                        message: { type: 'string' }
+                    }
+                }
+            }
+        }
+    }, async (request: FastifyRequest, reply: FastifyReply) => {
+        // Verify demo user exists
+        const demoUser = await prisma.user.findFirst({
+            where: { id: DEMO_USER_ID, isDemo: true }
+        });
+
+        if (!demoUser) {
+            return reply.status(503).send({
+                error: 'Demo mode unavailable',
+                message: 'Demo data has not been configured'
+            });
+        }
+
+        // Set session cookies (same as real auth)
+        reply.setCookie('session', DEMO_USER_ID, {
+            ...COOKIE_OPTIONS,
+            maxAge: 60 * 60 * 24, // 24 hours for demo
+        });
+        reply.setCookie('auth_status', 'authenticated', {
+            ...COOKIE_OPTIONS,
+            httpOnly: false,
+            maxAge: 60 * 60 * 24,
+        });
+
+        return reply.redirect(`${FRONTEND_URL}/dashboard`);
+    });
+
     fastify.get('/auth/me', {
         schema: {
             description: 'Get current authenticated user profile',
@@ -253,6 +298,7 @@ export async function authRoutes(fastify: FastifyInstance) {
                 imageUrl: true,
                 country: true,
                 createdAt: true,
+                isDemo: true,
             },
         });
 

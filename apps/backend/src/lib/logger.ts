@@ -2,7 +2,7 @@ import pino from 'pino';
 import { randomUUID } from 'crypto';
 
 // Centralized logger for structured logging.
-// Uses Pino (Fastify's built-in logger) for JSON output.
+// Uses Pino for JSON output.
 
 const isDev = process.env.NODE_ENV !== 'production';
 
@@ -38,4 +38,5 @@ export const workerLoggers = {
     metadata: createChildLogger({ worker: 'metadata' }),
     topStats: createChildLogger({ worker: 'topStats' }),
     import: createChildLogger({ worker: 'import' }),
+    playlist: createChildLogger({ worker: 'playlist' }),
 };

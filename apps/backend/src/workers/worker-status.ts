@@ -28,3 +28,12 @@ export function setTopStatsWorkerRunning(running: boolean): void {
 export function isTopStatsWorkerRunning(): boolean {
     return _topStatsWorkerRunning;
 }
+
+// Playlist Worker
+let _playlistWorkerRunning = false;
+export function setPlaylistWorkerRunning(running: boolean): void {
+    _playlistWorkerRunning = running;
+}
+export function isPlaylistWorkerRunning(): boolean {
+    return _playlistWorkerRunning;
+}

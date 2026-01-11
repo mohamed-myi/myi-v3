@@ -95,3 +95,61 @@ export interface SpotifyTracksBatchResponse {
 export interface SpotifyAlbumsBatchResponse {
     albums: SpotifyAlbum[];
 }
+
+// Playlist types
+
+export interface SpotifyPlaylistOwner {
+    id: string;
+    display_name: string | null;
+    type: 'user';
+    uri: string;
+}
+
+export interface SpotifyPlaylistSimple {
+    id: string;
+    name: string;
+    description: string | null;
+    images: SpotifyImage[];
+    owner: SpotifyPlaylistOwner;
+    public: boolean | null;
+    tracks: {
+        total: number;
+        href: string;
+    };
+    uri: string;
+    snapshot_id: string;
+}
+
+export interface SpotifyPlaylistFull extends SpotifyPlaylistSimple {
+    followers: {
+        total: number;
+    };
+}
+
+export interface SpotifyPlaylistTrackItem {
+    added_at: string | null;
+    added_by: SpotifyPlaylistOwner | null;
+    is_local: boolean;
+    track: SpotifyTrack | null;
+}
+
+export interface SpotifyPlaylistTracksResponse {
+    items: SpotifyPlaylistTrackItem[];
+    total: number;
+    limit: number;
+    offset: number;
+    next: string | null;
+    previous: string | null;
+}
+
+export type SpotifyUserPlaylistsResponse = SpotifyPaginatedResponse<SpotifyPlaylistSimple>;
+
+export interface SpotifyCreatePlaylistResponse extends SpotifyPlaylistFull {
+    external_urls: {
+        spotify: string;
+    };
+}
+
+export interface SpotifyAddTracksResponse {
+    snapshot_id: string;
+}

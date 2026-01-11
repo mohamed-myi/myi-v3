@@ -13,8 +13,10 @@ import { settingsRoutes } from './routes/settings';
 import { userRoutes } from './routes/users';
 import { compareRoutes } from './routes/compare';
 import { healthRoutes } from './routes/health';
+import { playlistRoutes } from './routes/playlists';
 import multipart from '@fastify/multipart';
 import { authMiddleware } from './middleware/auth';
+import { demoGuard } from './middleware/demo-guard';
 import { registerRateLimiting } from './middleware/rate-limit';
 import { closeRedis } from './lib/redis';
 import { closeSyncWorker, setupSyncWorker } from './workers/sync-worker';
@@ -66,6 +68,7 @@ export const build = async () => {
   await registerRateLimiting(server);
 
   server.addHook('preHandler', authMiddleware);
+  server.addHook('preHandler', demoGuard);
 
   server.setErrorHandler(globalErrorHandler);
 
@@ -77,6 +80,7 @@ export const build = async () => {
   await server.register(userRoutes);
   await server.register(compareRoutes);
   await server.register(healthRoutes);
+  await server.register(playlistRoutes);
 
   return server;
 };
@@ -84,6 +88,7 @@ export const build = async () => {
 import { metadataWorker } from './workers/metadata-worker';
 import { closeImportWorker, importWorker } from './workers/import-worker';
 import { closeTopStatsWorker, setupTopStatsWorker } from './workers/top-stats-worker';
+import { closePlaylistWorker, setupPlaylistWorker } from './workers/playlist-worker';
 import { HealingService } from './services/healing';
 
 if (require.main === module) {
@@ -96,6 +101,7 @@ if (require.main === module) {
       // Initialize workers
       setupSyncWorker();
       setupTopStatsWorker();
+      setupPlaylistWorker();
 
       // Import worker is auto-initialized on import, just log it's ready
       logger.info({ worker: importWorker.name }, 'Import worker initialized');
@@ -111,6 +117,7 @@ if (require.main === module) {
         await closeSyncWorker();
         await closeTopStatsWorker();
         await closeImportWorker();
+        await closePlaylistWorker();
         await closeRedis();
         await server.close();
         process.exit(0);
