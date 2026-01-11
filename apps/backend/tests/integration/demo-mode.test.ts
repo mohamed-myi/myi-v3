@@ -1,10 +1,22 @@
 import { config } from 'dotenv';
 import { resolve } from 'path';
 
-// Load env vars before importing anything else
+// Load env vars
 config({ path: resolve(__dirname, '../../../../.env') });
 
-// Mock Redis before importing app
+// Manually ensure critical env vars are set to satisfy Zod validation
+process.env.NODE_ENV = 'test';
+process.env.PORT = process.env.PORT || '3001';
+process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://mock:5432/mock';
+process.env.REDIS_URL = process.env.REDIS_URL || 'redis://mock:6379';
+process.env.SPOTIFY_CLIENT_ID = process.env.SPOTIFY_CLIENT_ID || 'mock_client_id';
+process.env.SPOTIFY_CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET || 'mock_client_secret';
+// Must be 64 chars
+process.env.ENCRYPTION_KEY = process.env.ENCRYPTION_KEY?.length === 64
+    ? process.env.ENCRYPTION_KEY
+    : '0000000000000000000000000000000000000000000000000000000000000000';
+
+// Mock Redis 
 jest.mock('../../src/lib/redis', () => ({
     redis: {
         get: jest.fn(),
@@ -16,11 +28,10 @@ jest.mock('../../src/lib/redis', () => ({
     closeRedis: jest.fn(),
 }));
 
-import { build } from '../../src/index';
 import { FastifyInstance } from 'fastify';
 import { prisma } from '../../src/lib/prisma';
 
-// Mock getValidAccessToken to return a token so we pass auth check
+// Mock getValidAccessToken
 jest.mock('../../src/lib/token-manager', () => ({
     getValidAccessToken: jest.fn().mockResolvedValue({ accessToken: 'fake-token' }),
 }));
@@ -31,7 +42,6 @@ jest.mock('../../src/lib/prisma', () => ({
         user: {
             findUnique: jest.fn(),
         },
-        // Add other used models if necessary, e.g. for ensureTopTracksCached
         spotifyTopTrack: {
             findMany: jest.fn().mockResolvedValue([]),
         },
@@ -44,15 +54,32 @@ jest.mock('../../src/lib/prisma', () => ({
     },
 }));
 
+// Mock Auth Middleware to bypass DB/Cookie logic
+jest.mock('../../src/middleware/auth', () => ({
+    authMiddleware: async (req: any) => {
+        const sessionId = req.cookies.session;
+        if (sessionId) {
+            req.userId = sessionId;
+            // Simple mock logic: if ID is 'demo-user-id', set isDemo.
+            if (sessionId === 'demo-user-id') {
+                req.isDemo = true;
+            }
+        }
+    }
+}));
+
 describe('Demo Mode Restrictions', () => {
     let app: FastifyInstance;
 
     beforeAll(async () => {
+        // Use require to ensure process.env is set before src/env.ts runs
+        // Dynamic import() fails in Jest without experimental flags
+        const { build } = require('../../src/index');
         app = await build();
     });
 
     afterAll(async () => {
-        await app.close();
+        if (app) await app.close();
     });
 
     beforeEach(() => {
