@@ -1,18 +1,3 @@
-
-import { prisma } from '../../src/lib/prisma';
-// We need to test the logic that is currently embedded in the worker,
-// but we are about to extract it. 
-// A good way is to first ensure we can test the worker's resolution logic.
-// But `resolveTrackUris` is NOT exported in the original file.
-// I will export it temporarily or use rewire, BUT better yet:
-// I will create the test assuming I WILL export `resolveTrackUris` for testing, 
-// OR I will test `processPlaylistJob` if I can access it.
-// The file exports `setupPlaylistWorker`.
-// I will modifying the worker file to export `resolveTrackUris` to make it testable.
-
-import { resolveTrackUris } from '../../src/workers/playlist-worker';
-import * as playlistService from '../../src/services/playlist-service';
-
 // Mock everything
 jest.mock('../../src/lib/prisma', () => ({
     prisma: {
@@ -23,12 +8,39 @@ jest.mock('../../src/lib/prisma', () => ({
     },
 }));
 
+// Mock redis + bullmq to prevent real Redis connections during unit tests.
+// playlist-worker imports playlist-queue which constructs a BullMQ Queue at module load.
+jest.mock('../../src/lib/redis', () => ({
+    getRedisUrl: jest.fn().mockReturnValue('redis://mock:6379'),
+    REDIS_CONNECTION_CONFIG: {},
+    redis: {},
+}));
+
+jest.mock('bullmq', () => ({
+    Queue: jest.fn().mockImplementation(() => ({
+        add: jest.fn(),
+        getJob: jest.fn(),
+        pause: jest.fn(),
+        resume: jest.fn(),
+        close: jest.fn(),
+    })),
+    Worker: jest.fn().mockImplementation(() => ({
+        on: jest.fn(),
+        close: jest.fn(),
+    })),
+    UnrecoverableError: class UnrecoverableError extends Error { },
+}));
+
 jest.mock('../../src/services/playlist-service', () => ({
     resolveShuffleTracks: jest.fn(),
     resolveTop50Tracks: jest.fn(),
     resolveAllTimeTop50Tracks: jest.fn(),
     resolveRecentTracks: jest.fn(),
 }));
+
+import { prisma } from '../../src/lib/prisma';
+import { resolveTrackUris } from '../../src/workers/playlist-worker';
+import * as playlistService from '../../src/services/playlist-service';
 
 describe('resolveTrackUris Refactor', () => {
     const jobId = 'test-job-id';

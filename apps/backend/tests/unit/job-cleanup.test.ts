@@ -1,7 +1,3 @@
-import { prisma } from '../../src/lib/prisma';
-import { checkStaleJobs } from '../../src/workers/playlist-worker';
-import { workerLoggers } from '../../src/lib/logger';
-
 // Mock prisma
 jest.mock('../../src/lib/prisma', () => ({
     prisma: {
@@ -20,6 +16,33 @@ jest.mock('../../src/lib/logger', () => ({
         },
     },
 }));
+
+// Mock redis + bullmq to prevent real Redis connections during unit tests.
+// playlist-worker imports playlist-queue which constructs a BullMQ Queue at module load.
+jest.mock('../../src/lib/redis', () => ({
+    getRedisUrl: jest.fn().mockReturnValue('redis://mock:6379'),
+    REDIS_CONNECTION_CONFIG: {},
+    redis: {},
+}));
+
+jest.mock('bullmq', () => ({
+    Queue: jest.fn().mockImplementation(() => ({
+        add: jest.fn(),
+        getJob: jest.fn(),
+        pause: jest.fn(),
+        resume: jest.fn(),
+        close: jest.fn(),
+    })),
+    Worker: jest.fn().mockImplementation(() => ({
+        on: jest.fn(),
+        close: jest.fn(),
+    })),
+    UnrecoverableError: class UnrecoverableError extends Error { },
+}));
+
+import { prisma } from '../../src/lib/prisma';
+import { workerLoggers } from '../../src/lib/logger';
+import { checkStaleJobs } from '../../src/workers/playlist-worker';
 
 describe('checkStaleJobs', () => {
     beforeEach(() => {

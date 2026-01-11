@@ -275,6 +275,7 @@ describe('Playlist Routes', () => {
                     userId,
                     creationMethod: 'SHUFFLE',
                     name: 'My Shuffled Playlist',
+                    idempotencyKey: expect.stringMatching(/^[a-f0-9]{32}$/),
                 }),
             });
         });
