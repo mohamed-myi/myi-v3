@@ -46,23 +46,21 @@ jest.mock('../../src/services/top-stats-service', () => ({
     daysAgo: jest.fn((d: number) => new Date(Date.now() - d * 24 * 60 * 60 * 1000)),
 }));
 
-
-jest.mock('../../src/lib/prisma', () => ({
-    prisma: {
-        spotifyAuth: {
-            findMany: jest.fn().mockResolvedValue([
-                { userId: 'test-user-1' },
-                { userId: 'test-user-2' },
-            ]),
-        },
-        user: {
-            findMany: jest.fn().mockResolvedValue([]),
-        },
-    },
+jest.mock('../../src/lib/partitions', () => ({
+    ensurePartitionForDate: jest.fn().mockResolvedValue({ partitionName: 'listening_events_y2026m01', created: true }),
+    enforcePartitionIndexes: jest.fn().mockResolvedValue([]),
 }));
+
+jest.mock('../../src/lib/prisma', () => {
+    const { createMockPrisma } = jest.requireActual('../mocks/prisma.mock');
+    return {
+        prisma: createMockPrisma(),
+    };
+});
 
 import Fastify, { FastifyInstance } from 'fastify';
 import { cronRoutes } from '../../src/routes/cron';
+import { prisma } from '../../src/lib/prisma';
 
 describe('cron routes', () => {
     let app: FastifyInstance;

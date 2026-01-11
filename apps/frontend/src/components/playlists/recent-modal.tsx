@@ -6,6 +6,7 @@ import { validateRecent, createRecentPlaylist } from "@/hooks/use-playlists";
 import { SlidePanel } from "./slide-panel";
 import { useDemoMode } from "@/hooks/use-demo-mode";
 import { AlertCircle, Check, Loader2, History, ImageIcon, X } from "lucide-react";
+import Image from "next/image";
 
 interface RecentModalProps {
     isOpen: boolean;
@@ -312,9 +313,11 @@ export function RecentModal({ isOpen, onClose }: RecentModalProps) {
                             />
                             {coverPreview ? (
                                 <div className="relative group inline-block">
-                                    <img
+                                    <Image
                                         src={coverPreview}
                                         alt="Cover preview"
+                                        width={96}
+                                        height={96}
                                         className="w-24 h-24 rounded-lg object-cover"
                                     />
                                     <button

@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";

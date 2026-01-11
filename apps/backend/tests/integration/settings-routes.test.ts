@@ -17,18 +17,12 @@ jest.mock('../../src/workers/top-stats-queue', () => ({
     topStatsQueue: { add: jest.fn() },
 }));
 
-const mockPrisma = {
-    user: { findUnique: jest.fn() },
-    userSettings: {
-        findUnique: jest.fn(),
-        create: jest.fn(),
-        upsert: jest.fn(),
-    },
-};
-
-jest.mock('../../src/lib/prisma', () => ({
-    prisma: mockPrisma,
-}));
+jest.mock('../../src/lib/prisma', () => {
+    const { createMockPrisma } = jest.requireActual('../mocks/prisma.mock');
+    return {
+        prisma: createMockPrisma(),
+    };
+});
 
 jest.mock('../../src/middleware/auth', () => ({
     authMiddleware: async (req: any) => {
@@ -42,6 +36,7 @@ jest.mock('../../src/middleware/auth', () => ({
 import Fastify, { FastifyInstance } from 'fastify';
 import { settingsRoutes } from '../../src/routes/settings';
 import { authMiddleware } from '../../src/middleware/auth';
+import { prisma } from '../../src/lib/prisma';
 
 describe('Settings Routes', () => {
     let app: FastifyInstance;
@@ -72,7 +67,7 @@ describe('Settings Routes', () => {
         });
 
         it('returns existing settings for authenticated user', async () => {
-            mockPrisma.userSettings.findUnique.mockResolvedValue({
+            prisma.userSettings.findUnique.mockResolvedValue({
                 isPublicProfile: true,
                 shareTopTracks: true,
                 shareTopArtists: true,
@@ -94,8 +89,8 @@ describe('Settings Routes', () => {
         });
 
         it('creates default settings if none exist', async () => {
-            mockPrisma.userSettings.findUnique.mockResolvedValue(null);
-            mockPrisma.userSettings.create.mockResolvedValue({
+            prisma.userSettings.findUnique.mockResolvedValue(null);
+            prisma.userSettings.create.mockResolvedValue({
                 isPublicProfile: false,
                 shareTopTracks: true,
                 shareTopArtists: true,
@@ -111,13 +106,13 @@ describe('Settings Routes', () => {
             });
 
             expect(response.statusCode).toBe(200);
-            expect(mockPrisma.userSettings.create).toHaveBeenCalled();
+            expect(prisma.userSettings.create).toHaveBeenCalled();
         });
     });
 
     describe('PATCH /me/settings', () => {
         it('updates isPublicProfile setting', async () => {
-            mockPrisma.userSettings.upsert.mockResolvedValue({
+            prisma.userSettings.upsert.mockResolvedValue({
                 isPublicProfile: false,
                 shareTopTracks: true,
                 shareTopArtists: true,
@@ -138,7 +133,7 @@ describe('Settings Routes', () => {
         });
 
         it('updates timezone setting with valid timezone', async () => {
-            mockPrisma.userSettings.upsert.mockResolvedValue({
+            prisma.userSettings.upsert.mockResolvedValue({
                 isPublicProfile: true,
                 shareTopTracks: true,
                 shareTopArtists: true,
@@ -171,7 +166,7 @@ describe('Settings Routes', () => {
         });
 
         it('persists emailNotifications preference', async () => {
-            mockPrisma.userSettings.upsert.mockResolvedValue({
+            prisma.userSettings.upsert.mockResolvedValue({
                 isPublicProfile: true,
                 shareTopTracks: true,
                 shareTopArtists: true,

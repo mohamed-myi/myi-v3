@@ -6,6 +6,7 @@ import { useUserPlaylists, validateShuffle, createShufflePlaylist } from "@/hook
 import { SlidePanel } from "./slide-panel";
 import { useDemoMode } from "@/hooks/use-demo-mode";
 import { AlertCircle, Check, Loader2, ImageIcon, X, Shuffle, Music } from "lucide-react";
+import Image from "next/image";
 
 interface ShuffleModalProps {
     isOpen: boolean;
@@ -96,7 +97,7 @@ export function ShuffleModal({ isOpen, onClose }: ShuffleModalProps) {
                 setCoverImage(base64);
             };
             reader.readAsDataURL(blob);
-        } catch (_err) {
+        } catch {
             setError("Failed to load original cover image");
             setUseOriginalCover(false);
         }
@@ -251,11 +252,12 @@ export function ShuffleModal({ isOpen, onClose }: ShuffleModalProps) {
                                                     {index + 1}
                                                 </span>
                                                 {playlist.imageUrl ? (
-                                                    <img
+                                                    <Image
                                                         src={playlist.imageUrl}
                                                         alt={playlist.name}
+                                                        width={40}
+                                                        height={40}
                                                         className="w-10 h-10 rounded object-cover shrink-0"
-                                                        loading="lazy"
                                                     />
                                                 ) : (
                                                     <div className="w-10 h-10 rounded bg-neutral-700 flex items-center justify-center shrink-0">
@@ -280,9 +282,11 @@ export function ShuffleModal({ isOpen, onClose }: ShuffleModalProps) {
                                     {selectedPlaylist && (
                                         <div className="mt-3 p-3 rounded-lg bg-mint-500/10 border border-mint-500/20 flex items-center gap-3">
                                             {selectedPlaylist.imageUrl ? (
-                                                <img
+                                                <Image
                                                     src={selectedPlaylist.imageUrl}
                                                     alt={selectedPlaylist.name}
+                                                    width={48}
+                                                    height={48}
                                                     className="w-12 h-12 rounded object-cover"
                                                 />
                                             ) : (
@@ -400,9 +404,11 @@ export function ShuffleModal({ isOpen, onClose }: ShuffleModalProps) {
                                                 : 'bg-neutral-800 border-white/10 hover:bg-neutral-700'
                                                 }`}
                                         >
-                                            <img
+                                            <Image
                                                 src={selectedPlaylist.imageUrl}
                                                 alt="Original cover"
+                                                width={64}
+                                                height={64}
                                                 className="w-16 h-16 rounded object-cover"
                                             />
                                             <span className="text-xs text-white/60">{UI.PLAYLIST.COMMON.LABELS.ORIGINAL}</span>
@@ -426,9 +432,11 @@ export function ShuffleModal({ isOpen, onClose }: ShuffleModalProps) {
                                 {/* Upload Custom Cover */}
                                 {coverPreview && !useOriginalCover ? (
                                     <div className="relative group">
-                                        <img
+                                        <Image
                                             src={coverPreview}
                                             alt="Cover preview"
+                                            width={88}
+                                            height={88}
                                             className="w-[88px] h-[88px] rounded-lg object-cover"
                                         />
                                         <button

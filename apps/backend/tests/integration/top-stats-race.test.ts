@@ -52,39 +52,12 @@ jest.mock('../../src/services/top-stats-service', () => ({
 }));
 
 // Mock Prisma
-const mockPrisma = {
-    spotifyTopTrack: {
-        findMany: jest.fn(),
-    },
-    spotifyTopArtist: {
-        findMany: jest.fn(),
-    },
-    userTrackStats: {
-        findMany: jest.fn(),
-        findFirst: jest.fn(),
-    },
-    userArtistStats: {
-        findMany: jest.fn(),
-    },
-    listeningEvent: {
-        findMany: jest.fn(),
-        count: jest.fn(),
-        groupBy: jest.fn(),
-    },
-    userHourStats: {
-        findMany: jest.fn(),
-    },
-    userTimeBucketStats: {
-        findMany: jest.fn(),
-    },
-    track: {
-        findUnique: jest.fn(),
-    },
-};
-
-jest.mock('../../src/lib/prisma', () => ({
-    prisma: mockPrisma,
-}));
+jest.mock('../../src/lib/prisma', () => {
+    const { createMockPrisma } = jest.requireActual('../mocks/prisma.mock');
+    return {
+        prisma: createMockPrisma(),
+    };
+});
 
 // Mock auth middleware
 jest.mock('../../src/middleware/auth', () => ({
@@ -98,6 +71,7 @@ jest.mock('../../src/middleware/auth', () => ({
 
 import Fastify, { FastifyInstance } from 'fastify';
 import { statsRoutes } from '../../src/routes/stats';
+import { prisma } from '../../src/lib/prisma';
 import { authMiddleware } from '../../src/middleware/auth';
 
 describe('Top Stats Race Condition Tests', () => {
@@ -123,7 +97,7 @@ describe('Top Stats Race Condition Tests', () => {
         it('returns 202 with status:processing when topStatsRefreshedAt is null and data is empty for short_term tracks', async () => {
             // User has not been hydrated yet
             mockIsTopStatsHydrated.mockResolvedValue(false);
-            mockPrisma.spotifyTopTrack.findMany.mockResolvedValue([]);
+            prisma.spotifyTopTrack.findMany.mockResolvedValue([]);
 
             const response = await app.inject({
                 method: 'GET',
@@ -141,7 +115,7 @@ describe('Top Stats Race Condition Tests', () => {
 
         it('returns 202 with status:processing when topStatsRefreshedAt is null and data is empty for medium_term tracks', async () => {
             mockIsTopStatsHydrated.mockResolvedValue(false);
-            mockPrisma.spotifyTopTrack.findMany.mockResolvedValue([]);
+            prisma.spotifyTopTrack.findMany.mockResolvedValue([]);
 
             const response = await app.inject({
                 method: 'GET',
@@ -156,7 +130,7 @@ describe('Top Stats Race Condition Tests', () => {
 
         it('returns 202 with status:processing when topStatsRefreshedAt is null and data is empty for long_term tracks', async () => {
             mockIsTopStatsHydrated.mockResolvedValue(false);
-            mockPrisma.spotifyTopTrack.findMany.mockResolvedValue([]);
+            prisma.spotifyTopTrack.findMany.mockResolvedValue([]);
 
             const response = await app.inject({
                 method: 'GET',
@@ -171,7 +145,7 @@ describe('Top Stats Race Condition Tests', () => {
 
         it('returns 202 for artists when topStatsRefreshedAt is null', async () => {
             mockIsTopStatsHydrated.mockResolvedValue(false);
-            mockPrisma.spotifyTopArtist.findMany.mockResolvedValue([]);
+            prisma.spotifyTopArtist.findMany.mockResolvedValue([]);
 
             const response = await app.inject({
                 method: 'GET',
@@ -185,7 +159,7 @@ describe('Top Stats Race Condition Tests', () => {
 
         it('simulates 3 rapid requests: all return 202 and cache remains empty', async () => {
             mockIsTopStatsHydrated.mockResolvedValue(false);
-            mockPrisma.spotifyTopTrack.findMany.mockResolvedValue([]);
+            prisma.spotifyTopTrack.findMany.mockResolvedValue([]);
 
             const responses = await Promise.all([
                 app.inject({
@@ -219,7 +193,7 @@ describe('Top Stats Race Condition Tests', () => {
     describe('Hydrated User: 200 OK Response', () => {
         it('returns 200 OK with data when topStatsRefreshedAt is set', async () => {
             mockIsTopStatsHydrated.mockResolvedValue(true);
-            mockPrisma.spotifyTopTrack.findMany.mockResolvedValue([
+            prisma.spotifyTopTrack.findMany.mockResolvedValue([
                 {
                     rank: 1,
                     track: {
@@ -249,7 +223,7 @@ describe('Top Stats Race Condition Tests', () => {
         it('returns 200 OK with empty array when hydrated but data is legitimately empty', async () => {
             // Hydrated, but user has no long_term data (new Spotify account)
             mockIsTopStatsHydrated.mockResolvedValue(true);
-            mockPrisma.spotifyTopTrack.findMany.mockResolvedValue([]);
+            prisma.spotifyTopTrack.findMany.mockResolvedValue([]);
 
             const response = await app.inject({
                 method: 'GET',
@@ -270,7 +244,7 @@ describe('Top Stats Race Condition Tests', () => {
         it('returns 200 for alltime range regardless of hydration status', async () => {
             // For alltime, we use userTrackStats, not Spotify top data
             mockIsTopStatsHydrated.mockResolvedValue(false);
-            mockPrisma.userTrackStats.findMany.mockResolvedValue([
+            prisma.userTrackStats.findMany.mockResolvedValue([
                 {
                     playCount: 50,
                     totalMs: BigInt(1800000),

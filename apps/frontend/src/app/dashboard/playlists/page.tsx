@@ -17,7 +17,7 @@ export default function PlaylistsPage() {
         <AppLayout>
             <div className="min-h-screen pb-20">
                 <PageTitle
-                    title="Create Playlist"
+                    title="Custom Playlists"
                     subtitle="Generate custom mixes from your stats & library"
                 />
 

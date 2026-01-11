@@ -17,18 +17,16 @@ jest.mock('../../src/workers/top-stats-queue', () => ({
     topStatsQueue: { add: jest.fn() },
 }));
 
-const mockPrisma = {
-    user: { findUnique: jest.fn() },
-    userTrackStats: { findMany: jest.fn() },
-    userArtistStats: { findMany: jest.fn() },
-};
-
-jest.mock('../../src/lib/prisma', () => ({
-    prisma: mockPrisma,
-}));
+jest.mock('../../src/lib/prisma', () => {
+    const { createMockPrisma } = jest.requireActual('../mocks/prisma.mock');
+    return {
+        prisma: createMockPrisma(),
+    };
+});
 
 import Fastify, { FastifyInstance } from 'fastify';
 import { userRoutes } from '../../src/routes/users';
+import { prisma } from '../../src/lib/prisma';
 
 describe('Users Routes', () => {
     let app: FastifyInstance;
@@ -49,7 +47,7 @@ describe('Users Routes', () => {
 
     describe('GET /users/:username', () => {
         it('returns 404 for non-existent user', async () => {
-            mockPrisma.user.findUnique.mockResolvedValue(null);
+            prisma.user.findUnique.mockResolvedValue(null);
 
             const response = await app.inject({
                 method: 'GET',
@@ -61,7 +59,7 @@ describe('Users Routes', () => {
         });
 
         it('returns public user profile', async () => {
-            mockPrisma.user.findUnique.mockResolvedValue({
+            prisma.user.findUnique.mockResolvedValue({
                 spotifyId: 'spotify123',
                 displayName: 'Test User',
                 imageUrl: 'https://image.jpg',
@@ -83,7 +81,7 @@ describe('Users Routes', () => {
 
     describe('GET /users/:username/top', () => {
         it('returns 404 for non-existent user', async () => {
-            mockPrisma.user.findUnique.mockResolvedValue(null);
+            prisma.user.findUnique.mockResolvedValue(null);
 
             const response = await app.inject({
                 method: 'GET',
@@ -95,7 +93,7 @@ describe('Users Routes', () => {
         });
 
         it('returns 403 for private profile', async () => {
-            mockPrisma.user.findUnique.mockResolvedValue({
+            prisma.user.findUnique.mockResolvedValue({
                 id: 'user-id',
                 spotifyId: 'private_user',
                 settings: { isPublicProfile: false },
@@ -111,12 +109,12 @@ describe('Users Routes', () => {
         });
 
         it('returns top tracks and artists for public profile', async () => {
-            mockPrisma.user.findUnique.mockResolvedValue({
+            prisma.user.findUnique.mockResolvedValue({
                 id: 'user-id',
                 spotifyId: 'public_user',
                 settings: { isPublicProfile: true },
             });
-            mockPrisma.userTrackStats.findMany.mockResolvedValue([
+            prisma.userTrackStats.findMany.mockResolvedValue([
                 {
                     track: {
                         id: 't1',
@@ -127,7 +125,7 @@ describe('Users Routes', () => {
                     playCount: 100,
                 },
             ]);
-            mockPrisma.userArtistStats.findMany.mockResolvedValue([
+            prisma.userArtistStats.findMany.mockResolvedValue([
                 {
                     artist: { id: 'a1', name: 'Top Artist' },
                     playCount: 50,
@@ -148,13 +146,13 @@ describe('Users Routes', () => {
 
         it('enforces privacy - stats unreachable when isPublicProfile is false', async () => {
 
-            mockPrisma.user.findUnique.mockResolvedValue({
+            prisma.user.findUnique.mockResolvedValue({
                 id: 'user-id',
                 spotifyId: 'changing_user',
                 settings: { isPublicProfile: true },
             });
-            mockPrisma.userTrackStats.findMany.mockResolvedValue([]);
-            mockPrisma.userArtistStats.findMany.mockResolvedValue([]);
+            prisma.userTrackStats.findMany.mockResolvedValue([]);
+            prisma.userArtistStats.findMany.mockResolvedValue([]);
 
             const publicResponse = await app.inject({
                 method: 'GET',
@@ -162,7 +160,7 @@ describe('Users Routes', () => {
             });
             expect(publicResponse.statusCode).toBe(200);
 
-            mockPrisma.user.findUnique.mockResolvedValue({
+            prisma.user.findUnique.mockResolvedValue({
                 id: 'user-id',
                 spotifyId: 'changing_user',
                 settings: { isPublicProfile: false },

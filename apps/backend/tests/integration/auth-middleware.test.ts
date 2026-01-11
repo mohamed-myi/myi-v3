@@ -8,20 +8,21 @@ import Fastify, { FastifyInstance } from 'fastify';
 import cookie from '@fastify/cookie';
 import { authMiddleware } from '../../src/middleware/auth';
 import { prisma } from '../../src/lib/prisma';
+import { createMockPrisma } from '../mocks/prisma.mock';
+
+jest.mock('../../src/lib/prisma', () => {
+    const { createMockPrisma } = jest.requireActual('../mocks/prisma.mock');
+    return {
+        prisma: createMockPrisma(),
+    };
+});
 
 describe('auth middleware', () => {
     let app: FastifyInstance;
     let testUserId: string;
 
     beforeAll(async () => {
-        // Create test user
-        const user = await prisma.user.create({
-            data: {
-                spotifyId: `test-middleware-${Date.now()}`,
-                displayName: 'Middleware Test User',
-            },
-        });
-        testUserId = user.id;
+        testUserId = 'test-mock-user-id';
 
         app = Fastify();
         await app.register(cookie);
@@ -39,7 +40,6 @@ describe('auth middleware', () => {
     });
 
     afterAll(async () => {
-        await prisma.user.delete({ where: { id: testUserId } });
         await app.close();
     });
 
@@ -63,6 +63,8 @@ describe('auth middleware', () => {
     });
 
     test('returns 401 for invalid session cookie', async () => {
+        (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
+
         const response = await app.inject({
             method: 'GET',
             url: '/protected',
@@ -75,6 +77,11 @@ describe('auth middleware', () => {
     });
 
     test('allows access with valid session cookie (user exists)', async () => {
+        (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+            id: testUserId,
+            isDemo: false
+        });
+
         const response = await app.inject({
             method: 'GET',
             url: '/protected',

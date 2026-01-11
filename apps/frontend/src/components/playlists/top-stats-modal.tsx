@@ -6,6 +6,7 @@ import { validateTop50, createTop50Playlist } from "@/hooks/use-playlists";
 import { SlidePanel } from "./slide-panel";
 import { useDemoMode } from "@/hooks/use-demo-mode";
 import { AlertCircle, Check, Loader2, BarChart3, Calendar, ImageIcon, X } from "lucide-react";
+import Image from "next/image";
 
 interface TopStatsModalProps {
     isOpen: boolean;
@@ -273,9 +274,11 @@ export function TopStatsModal({ isOpen, onClose }: TopStatsModalProps) {
                             />
                             {coverPreview ? (
                                 <div className="relative group inline-block">
-                                    <img
+                                    <Image
                                         src={coverPreview}
                                         alt="Cover preview"
+                                        width={96}
+                                        height={96}
                                         className="w-24 h-24 rounded-lg object-cover"
                                     />
                                     <button

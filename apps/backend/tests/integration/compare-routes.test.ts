@@ -19,21 +19,12 @@ jest.mock('../../src/workers/queues', () => ({
 }));
 
 // Mock Prisma
-const mockPrisma = {
-    user: {
-        findUnique: jest.fn(),
-    },
-    spotifyTopArtist: {
-        findMany: jest.fn(),
-    },
-    spotifyTopTrack: {
-        findMany: jest.fn(),
-    },
-};
-
-jest.mock('../../src/lib/prisma', () => ({
-    prisma: mockPrisma,
-}));
+jest.mock('../../src/lib/prisma', () => {
+    const { createMockPrisma } = jest.requireActual('../mocks/prisma.mock');
+    return {
+        prisma: createMockPrisma(),
+    };
+});
 
 // Mock auth middleware
 jest.mock('../../src/middleware/auth', () => ({
@@ -48,6 +39,7 @@ jest.mock('../../src/middleware/auth', () => ({
 import Fastify, { FastifyInstance } from 'fastify';
 import { compareRoutes } from '../../src/routes/compare';
 import { authMiddleware } from '../../src/middleware/auth';
+import { prisma } from '../../src/lib/prisma';
 
 describe('Compare Routes Integration', () => {
     let app: FastifyInstance;
@@ -78,7 +70,7 @@ describe('Compare Routes Integration', () => {
         });
 
         it('returns 404 when target user not found', async () => {
-            mockPrisma.user.findUnique.mockResolvedValue(null);
+            prisma.user.findUnique.mockResolvedValue(null);
 
             const response = await app.inject({
                 method: 'GET',
@@ -91,7 +83,7 @@ describe('Compare Routes Integration', () => {
         });
 
         it('returns 403 when target profile is private', async () => {
-            mockPrisma.user.findUnique.mockResolvedValue({
+            prisma.user.findUnique.mockResolvedValue({
                 id: 'target-user-id',
                 spotifyId: 'friend',
                 displayName: 'Friend',
@@ -109,7 +101,7 @@ describe('Compare Routes Integration', () => {
         });
 
         it('returns comparison with common items and score', async () => {
-            mockPrisma.user.findUnique.mockResolvedValue({
+            prisma.user.findUnique.mockResolvedValue({
                 id: 'target-user-id',
                 spotifyId: 'friend',
                 displayName: 'Friend',
@@ -118,7 +110,7 @@ describe('Compare Routes Integration', () => {
             });
 
             // Mock source user top artists
-            mockPrisma.spotifyTopArtist.findMany.mockImplementation(({ where }) => {
+            prisma.spotifyTopArtist.findMany.mockImplementation(({ where }) => {
                 if (where.userId === 'user-123') {
                     return Promise.resolve([
                         {
@@ -143,7 +135,7 @@ describe('Compare Routes Integration', () => {
                 ]);
             });
 
-            mockPrisma.spotifyTopTrack.findMany.mockResolvedValue([]);
+            prisma.spotifyTopTrack.findMany.mockResolvedValue([]);
 
             const response = await app.inject({
                 method: 'GET',
@@ -163,7 +155,7 @@ describe('Compare Routes Integration', () => {
         });
 
         it('calculates higher score for more common items', async () => {
-            mockPrisma.user.findUnique.mockResolvedValue({
+            prisma.user.findUnique.mockResolvedValue({
                 id: 'target-user-id',
                 spotifyId: 'friend',
                 displayName: 'Friend',
@@ -177,8 +169,8 @@ describe('Compare Routes Integration', () => {
                 artist: { spotifyId: `sp-artist-${i}`, name: `Artist ${i}` },
             }));
 
-            mockPrisma.spotifyTopArtist.findMany.mockResolvedValue(artists);
-            mockPrisma.spotifyTopTrack.findMany.mockResolvedValue([]);
+            prisma.spotifyTopArtist.findMany.mockResolvedValue(artists);
+            prisma.spotifyTopTrack.findMany.mockResolvedValue([]);
 
             const response = await app.inject({
                 method: 'GET',

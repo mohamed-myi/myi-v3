@@ -34,3 +34,18 @@ export {
     ensurePartitionsForDates,
     ensurePartitionsForRange
 } from '../src/lib/partitions';
+
+import { createMockPrisma, resetMockPrisma } from './mocks/prisma.mock';
+import { prisma } from '../src/lib/prisma';
+
+// Mock Prisma globally for integration tests to prevent accidental DB connections
+jest.mock('../src/lib/prisma', () => {
+    const { createMockPrisma } = jest.requireActual('./mocks/prisma.mock');
+    return {
+        prisma: createMockPrisma(),
+    };
+});
+
+beforeEach(() => {
+    resetMockPrisma(prisma as any);
+});

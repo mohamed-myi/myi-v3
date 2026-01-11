@@ -49,6 +49,7 @@ jest.mock('../../src/workers/top-stats-queue', () => ({
 
 jest.mock('../../src/services/top-stats-service', () => ({
     triggerLazyRefreshIfStale: jest.fn().mockResolvedValue({ queued: false, staleHours: 0 }),
+    isTopStatsHydrated: jest.fn().mockResolvedValue(true),
 }));
 
 
@@ -62,36 +63,12 @@ jest.mock('../../src/services/stats-service', () => ({
     getActivityStats: mockGetActivityStats,
 }));
 
-
-const mockPrisma = {
-    userTrackStats: {
-        aggregate: jest.fn(),
-    },
-    userArtistStats: {
-        findFirst: jest.fn(),
-    },
-    userHourStats: {
-        findMany: jest.fn(),
-    },
-    userTimeBucketStats: {
-        findMany: jest.fn(),
-    },
-    spotifyTopTrack: {
-        findMany: jest.fn(),
-    },
-    spotifyTopArtist: {
-        findMany: jest.fn(),
-    },
-    listeningEvent: {
-        findMany: jest.fn(),
-        count: jest.fn(),
-    },
-};
-
-jest.mock('../../src/lib/prisma', () => ({
-    prisma: mockPrisma,
-}));
-
+jest.mock('../../src/lib/prisma', () => {
+    const { createMockPrisma } = jest.requireActual('../mocks/prisma.mock');
+    return {
+        prisma: createMockPrisma(),
+    };
+});
 
 jest.mock('../../src/middleware/auth', () => ({
     authMiddleware: async (req: any) => {
@@ -105,6 +82,7 @@ jest.mock('../../src/middleware/auth', () => ({
 import Fastify, { FastifyInstance } from 'fastify';
 import { statsRoutes } from '../../src/routes/stats';
 import { authMiddleware } from '../../src/middleware/auth';
+import { prisma } from '../../src/lib/prisma';
 
 describe('Stats Routes Integration', () => {
     let app: FastifyInstance;
@@ -174,13 +152,13 @@ describe('Stats Routes Integration', () => {
             expect(response.statusCode).toBe(200);
             expect(response.json().totalTracks).toBe(5);
             expect(response.json().topArtist).toBe('Cached Artist');
-            expect(mockPrisma.userTrackStats.aggregate).not.toHaveBeenCalled();
+            expect(prisma.userTrackStats.aggregate).not.toHaveBeenCalled();
         });
     });
 
     describe('GET /me/stats/top/tracks', () => {
         it('returns top tracks with default range', async () => {
-            mockPrisma.spotifyTopTrack.findMany.mockResolvedValue([
+            prisma.spotifyTopTrack.findMany.mockResolvedValue([
                 {
                     rank: 1,
                     track: {
@@ -206,7 +184,7 @@ describe('Stats Routes Integration', () => {
         });
 
         it('respects range query parameter', async () => {
-            mockPrisma.spotifyTopTrack.findMany.mockResolvedValue([]);
+            prisma.spotifyTopTrack.findMany.mockResolvedValue([]);
 
             await app.inject({
                 method: 'GET',
@@ -214,7 +192,7 @@ describe('Stats Routes Integration', () => {
                 headers: { 'x-test-user-id': 'user-123' },
             });
 
-            expect(mockPrisma.spotifyTopTrack.findMany).toHaveBeenCalledWith(
+            expect(prisma.spotifyTopTrack.findMany).toHaveBeenCalledWith(
                 expect.objectContaining({
                     where: { userId: 'user-123', term: 'MEDIUM_TERM' },
                 })
@@ -224,7 +202,7 @@ describe('Stats Routes Integration', () => {
 
     describe('GET /me/stats/top/artists', () => {
         it('returns top artists', async () => {
-            mockPrisma.spotifyTopArtist.findMany.mockResolvedValue([
+            prisma.spotifyTopArtist.findMany.mockResolvedValue([
                 {
                     rank: 1,
                     artist: {
@@ -250,14 +228,14 @@ describe('Stats Routes Integration', () => {
 
     describe('GET /me/history', () => {
         it('returns paginated listening history', async () => {
-            mockPrisma.listeningEvent.findMany.mockResolvedValue([
+            prisma.listeningEvent.findMany.mockResolvedValue([
                 {
                     id: 'event-1',
                     playedAt: new Date(),
                     track: { name: 'Track 1' },
                 },
             ]);
-            mockPrisma.listeningEvent.count.mockResolvedValue(100);
+            prisma.listeningEvent.count.mockResolvedValue(100);
 
             const response = await app.inject({
                 method: 'GET',

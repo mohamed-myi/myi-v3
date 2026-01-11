@@ -17,9 +17,9 @@ export interface MockModel {
 
 function createMockModel(): MockModel {
     return {
-        findUnique: jest.fn(),
-        findFirst: jest.fn(),
-        findMany: jest.fn(),
+        findUnique: jest.fn().mockResolvedValue(null),
+        findFirst: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn().mockResolvedValue([]),
         create: jest.fn(),
         createMany: jest.fn().mockResolvedValue({ count: 0 }),
         update: jest.fn(),
@@ -50,6 +50,7 @@ export interface MockPrismaClient {
     userHourStats: MockModel;
 
     importJob: MockModel;
+    playlistJob: MockModel;
     metadataRefreshLog: MockModel;
 
     spotifyTopTrack: MockModel;
@@ -79,6 +80,7 @@ export function createMockPrisma(): MockPrismaClient {
         userHourStats: createMockModel(),
 
         importJob: createMockModel(),
+        playlistJob: createMockModel(),
         metadataRefreshLog: createMockModel(),
 
         spotifyTopTrack: createMockModel(),
@@ -91,17 +93,17 @@ export function createMockPrisma(): MockPrismaClient {
     };
 }
 
-// Reset all mocks
+// Reset all mocks - uses mockClear to preserve implementations while clearing call history
 export function resetMockPrisma(mock: MockPrismaClient): void {
     Object.values(mock).forEach((model) => {
         if (typeof model === 'object' && model !== null) {
             Object.values(model).forEach((fn) => {
-                if (typeof fn === 'function' && 'mockReset' in fn) {
-                    (fn as jest.Mock).mockReset();
+                if (typeof fn === 'function' && 'mockClear' in fn) {
+                    (fn as jest.Mock).mockClear();
                 }
             });
-        } else if (typeof model === 'function' && 'mockReset' in model) {
-            (model as jest.Mock).mockReset();
+        } else if (typeof model === 'function' && 'mockClear' in model) {
+            (model as jest.Mock).mockClear();
         }
     });
 }
