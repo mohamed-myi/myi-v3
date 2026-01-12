@@ -39,7 +39,7 @@ The system is a **single deployable backend unit** organized into discrete horiz
 ┌──────────────────────────────▼──────────────────────────────────┐
 │                      PERSISTENCE LAYER                           │
 │   PostgreSQL 17 (Neon) - Partitioned tables, TIMESTAMPTZ         │
-│   Redis (Aiven) - Cache, locks, rate limits                      │
+│   AWS ElastiCache (Redis) - Cache, locks, rate limits            │
 └─────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────┐
@@ -68,9 +68,9 @@ The system is a **single deployable backend unit** organized into discrete horiz
 
 | Component | Boundary | Deployment |
 |-----------|----------|------------|
-| **Fastify API Server** | Stateless HTTP endpoints | Railway |
-| **BullMQ Workers** | Job processors (sync, import, metadata, top-stats) | Same Railway deployment |
-| **Next.js Frontend** | Static/SSR pages | Vercel |
+| **Fastify API Server** | Stateless HTTP endpoints | AWS EC2 (PM2 managed) |
+| **BullMQ Workers** | Job processors (sync, import, metadata, top stats) | Same EC2 instance |
+| **Next.js Frontend** | Static/SSR pages | AWS EC2 (Next.js) |
 | **Prisma Schema** | Database schema definition | Embedded in backend |
 
 ### External Dependencies (Uncontrolled)
@@ -79,8 +79,8 @@ The system is a **single deployable backend unit** organized into discrete horiz
 |---------|---------|--------------|------------|
 | **Spotify Web API** | OAuth, recently-played, top tracks/artists | 401/403/429 errors, outages | Circuit breaker, retry with backoff, token invalidation after 3 failures |
 | **Neon PostgreSQL** | Primary datastore | Cold start latency, connection limits | Connection pooling via Prisma adapter |
-| **Aiven Redis** | Cache, locks, job queue | Cold start, memory limits | Graceful degradation (skip cache on failure) |
-| **Vercel Edge** | Frontend hosting, CDN | Deployment failures | Independent of backend availability |
+| **AWS ElastiCache** | Cache, locks, job queue | Private VPC access only | Security Groups allow EC2 access |
+| **AWS Lambda** | Cron triggers (EventBridge) | Implementation complexity | Decoupled from main app logic |
 
 ### Trust Boundaries
 
@@ -96,8 +96,8 @@ The system is a **single deployable backend unit** organized into discrete horiz
 └─────────────────────────────────────────────────────────────────┘
          │                    │                    │
          ▼                    ▼                    ▼
-   [Spotify API]        [Neon Postgres]      [Aiven Redis]
-   (OAuth tokens)       (Encrypted conn)     (TLS required)
+   [Spotify API]        [Neon Postgres]      [AWS ElastiCache]
+   (OAuth tokens)       (Encrypted conn)     (Private VPC)
 ```
 
 ---
@@ -112,7 +112,7 @@ The system is a **single deployable backend unit** organized into discrete horiz
 | **Prisma** over Drizzle/Knex | Drizzle, raw SQL | Type-safe queries from schema, quick setup, migration management |
 | **BullMQ** over Temporal/Celery | Temporal, node-cron | Redis-native, lightweight, sufficient for job complexity |
 | **PostgreSQL partitioning** | Sharding, separate tables | Native range partitioning handles up to 1B rows without application changes |
-| **Neon** over Railway Postgres | Self-managed Postgres | Serverless, branching for dev environments |
+| **Neon** over AWS RDS | Self-managed Postgres | Serverless, branching for dev environments |
 | **HTTP-only cookies** over localStorage JWT | localStorage + Bearer | XSS-resistant, automatic inclusion, server-side revocation |
 | **Monorepo (pnpm)** over multi-repo | Separate repositories | Solo development, easy changes across frontend/backend, organization |
 
@@ -133,11 +133,11 @@ The system is a **single deployable backend unit** organized into discrete horiz
 
 ### Coupled Worker Deployment
 
-**Bottleneck**: Workers and API share the same Railway deployment. Under high import volume, worker CPU consumption directly impacts API response latency.
+**Bottleneck**: Workers and API share the same EC2 instance (t3.small). Under high import volume, worker CPU consumption directly impacts API response latency.
 
-**Failure Scenario**: A user uploads a 100MB extended history file. The import worker saturates CPU while parsing. Concurrent dashboard requests experience latency spikes because workers and API compete for the same process resources.
+**Failure Scenario**: A user uploads a 100MB extended history file. The import worker saturates CPU. Concurrent dashboard requests experience latency spikes because workers and API compete for the same vCPU credits.
 
-**Impact**: Horizontal scaling requires deploying additional Railway instances, but this duplicates API capacity unnecessarily when only worker capacity is needed.
+**Impact**: Horizontal scaling requires upgrading the EC2 instance type or deploying to a fleet, which adds cost/complexity compared to the current single-instance setup which was avoided for obvious reasons (I'm a student).
 
 ---
 
@@ -179,7 +179,7 @@ The layered monolith with async workers is optimal for:
 
 1. **Single developer project**: One deployment artifact, one schema, one test suite.
 2. **Moderate scale**: Partitioned tables handle up to 1B rows without sharding complexity.
-3. **Cost efficiency**: Single Railway instance, single Vercel instance and Neon/Aiven free tiers.
+3. **Cost efficiency**: Single t3.small EC2 instance (Free Tier eligible) + Neon Free Tier.
 4. **Acceptable risk**: Worker contention is mitigatable via concurrency limits and import throttling.
 
 The architecture should be revisited if:

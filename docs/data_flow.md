@@ -162,7 +162,7 @@ Worker B: Write playCount = 11  // Lost update! Should be 12
 **Why It Happens**: While `ListeningEvent` insertion is protected by the unique constraint, the stats increment is a separate read-modify-write operation.
 
 **Mitigation in Current Design**:
-- 5-minute sync cooldown per user reduces overlap probability (changed to 30-minutes to limit GitHub Actions)
+- 5-minute sync cooldown per user reduces overlap probability.
 - Import jobs are typically run once per user (not concurrent with sync)
 - Prisma's `update({ increment: N })` uses `SET col = col + N` which is atomic at the SQL level
 

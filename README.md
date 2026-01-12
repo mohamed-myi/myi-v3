@@ -60,10 +60,10 @@ I used to rely heavily on application logic to handle data. This project taught 
 
 | Layer | Technologies |
 |-------|--------------|
-| **Backend** | Node.js, TypeScript, Fastify, BullMQ |
-| **Data** | PostgreSQL 17, Prisma 7, Redis |
+| **Backend** | Node.js, TypeScript, Fastify, BullMQ, AWS Lambda (Cron) |
+| **Data** | PostgreSQL 17, Prisma 7, AWS ElastiCache (Redis) |
 | **Frontend** | Next.js 16, TailwindCSS, Framer Motion |
-| **Infrastructure** | Railway, Vercel, Neon |
+| **Infrastructure** | AWS EC2 (t3.small), Neon DB |
 
 → Rationale: [Technology Selection](docs/architecture.md#3-architectural-rationale)
 
@@ -71,8 +71,8 @@ I used to rely heavily on application logic to handle data. This project taught 
 
 | Document | Focus Area |
 |----------|------------|
-| [Architecture](docs/architecture.md) | System design, SOD, Alternative Options |
-| [Data Models](docs/data_models.md) | Entity relationships, constraints, critique |
+| [Architecture](docs/architecture.md) | System design, Alternative Considerations |
+| [Data Models](docs/data_models.md) | Entity relationships, constraints, self-critique |
 | [Data Flow](docs/data_flow.md) | Data pipelines, transformation logic |
 
 ## 6. Setup and Installation
@@ -101,6 +101,42 @@ Because this app runs in Development Mode, you must use your own credentials:
     ```bash
     pnpm run dev
     ```
+## 7. Demo Mode
+
+I added a demo mode to the app, because you can only authenticate if I manually add you as a user due to Spotify's policies. The demo mode is simply a read-only version supplemented with some static data so you can get a feel for the app.
+
+### For Developers
+- A separate demo user (`demo_user_fixed_id`) is created with `isDemo: true`
+- Data is copied from your account at a point in time and remains frozen
+- Write operations (import, playlist creation, settings) are blocked with a user-friendly message
+- The demo user has no Spotify tokens, so no sync workers will update the data
+
+### Setting Up Demo Mode
+
+1. **Seed the demo user with your data**:
+    ```bash
+    SOURCE_USER_ID=your_user_id npm run seed:demo
+    ```
+    To find your user ID, check `prisma studio` or query the users table.
+
+2. **Seed without source data** (empty demo user):
+    ```bash
+    npm run seed:demo
+    ```
+
+### What Gets Copied
+- Top tracks and artists (150 each)
+- Track and artist stats
+- Time bucket and hour stats
+- Sample listening events (up to 1000)
+- A completed import job example
+
+### Refreshing Demo Data
+Run the seed command again to update demo data with your latest stats:
+```bash
+SOURCE_USER_ID=your_user_id npm run seed:demo
+```
+
 ### Credits
 
 Written by Mohamed Ibrahim, formatted by Gemini.
