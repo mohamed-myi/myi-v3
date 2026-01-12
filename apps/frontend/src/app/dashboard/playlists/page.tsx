@@ -26,7 +26,7 @@ export default function PlaylistsPage() {
                         <PlaylistFeatureTile
                             icon={Shuffle}
                             title="True Shuffle"
-                            description="Tired of the same songs in your shuffle? Time to truly randomize it.."
+                            description="Tired of the same songs in your shuffle? Time to truly randomize it."
                             onClick={() => setActiveModal('shuffle')}
                         />
 
