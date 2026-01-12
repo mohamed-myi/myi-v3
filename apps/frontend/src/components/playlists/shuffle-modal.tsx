@@ -237,7 +237,7 @@ export function ShuffleModal({ isOpen, onClose }: ShuffleModalProps) {
                                     </div>
                                     <h3 className="text-lg font-medium text-white mb-2">Feature Unavailable</h3>
                                     <p className="text-white/40 max-w-[280px]">
-                                        Creating new shuffle playlists is disabled in demo mode. Sign in to your account to use this feature.
+                                        Creating new playlists is disabled in demo mode. Sign in to your account to use this feature.
                                     </p>
                                 </div>
                             ) : isLoadingPlaylists ? (
