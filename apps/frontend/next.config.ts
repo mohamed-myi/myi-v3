@@ -4,6 +4,7 @@ import type { NextConfig } from "next";
 const BACKEND_URL = process.env.BACKEND_URL || "http://127.0.0.1:3001";
 
 const nextConfig: NextConfig = {
+    devIndicators: false,
     images: {
         remotePatterns: [
             { protocol: 'https', hostname: 'i.scdn.co' },

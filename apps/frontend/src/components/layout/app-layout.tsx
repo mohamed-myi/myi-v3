@@ -337,16 +337,6 @@ function AppLayoutInner({ children }: AppLayoutProps) {
                     {children}
                 </main>
 
-                {/* Sticky Bottom Bar - Glassmorphic */}
-                <footer className="fixed bottom-0 left-0 right-0 z-50 backdrop-blur-xl bg-white/5 border-t border-white/10 px-6 py-3 flex items-center justify-between">
-                    <div className="text-xs text-white/40 font-mono">
-                        SYNC STATUS: <span className="text-green-400">IDLE</span>
-                    </div>
-                    <div className="text-xs text-white/30">
-                        v3.0.0
-                    </div>
-                </footer>
-
                 <ImportHistoryModal isOpen={isImportOpen} onClose={() => setIsImportOpen(false)} />
                 <LogoutConfirmationDialog isOpen={isLogoutOpen} onClose={() => setIsLogoutOpen(false)} />
             </div>
