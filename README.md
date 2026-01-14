@@ -26,7 +26,7 @@ After a few months at my internship, I realized that the planning and testing ph
 > For implementation details, refer to the [Architecture](docs/architecture.md), [Data Models](docs/data_models.md), and [Data Flow](docs/data_flow.md) documents.
 
 ### 2.1 Declarative Partitioning for 900M+ Scale
-A single table for listening events would eventually exceed manageable index sizes, slowing down queries. Monthly range partitioning keeps index depth shallow and allows for efficient data management without expensive delete operations.
+A single table for listening events would eventually exceed manageable index size, slowing down queries. Monthly range partitioning keeps index depth shallow and allows for efficient data management without expensive delete operations.
 
 → Implementation: [Partitioning Strategy](docs/data_models.md#3-key-constraints-and-indices)
 
