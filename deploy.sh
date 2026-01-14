@@ -6,6 +6,7 @@ echo "Deploying MYI-V3..."
 cd /home/ec2-user/myi-v3
 
 echo "Pulling latest code..."
+git reset --hard HEAD
 git pull origin main
 
 echo "Installing dependencies..."
