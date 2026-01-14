@@ -21,5 +21,7 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             cd ~/myi-v3
+            git reset --hard HEAD
+            git pull origin main
             chmod +x deploy.sh
             ./deploy.sh
