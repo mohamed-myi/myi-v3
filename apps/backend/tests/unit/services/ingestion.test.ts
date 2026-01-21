@@ -8,43 +8,36 @@ jest.mock('../../../src/lib/redis', () => ({
 
 const mockPrisma = {
     album: {
-        findUnique: jest.fn(),
-        create: jest.fn(),
+        findMany: jest.fn(),
+        createMany: jest.fn(),
     },
     artist: {
-        findUnique: jest.fn(),
-        create: jest.fn(),
+        findMany: jest.fn(),
+        createMany: jest.fn(),
     },
     track: {
-        findUnique: jest.fn(),
-        create: jest.fn(),
-        update: jest.fn(),
+        findMany: jest.fn(),
+        createMany: jest.fn(),
     },
     trackArtist: {
-        upsert: jest.fn(),
         createMany: jest.fn(),
     },
     listeningEvent: {
-        findUnique: jest.fn(),
-        create: jest.fn(),
+        findMany: jest.fn(),
+        createMany: jest.fn(),
         update: jest.fn(),
     },
     user: {
         update: jest.fn(),
     },
-    $transaction: jest.fn((queries: Promise<any>[]) => Promise.all(queries)),
+    $transaction: jest.fn(),
 };
 
 jest.mock('../../../src/lib/prisma', () => ({
     prisma: mockPrisma,
 }));
 
-import {
-    insertListeningEvent,
-    insertListeningEventWithIds,
-    insertListeningEvents,
-    insertListeningEventsWithIds,
-} from '../../../src/services/ingestion';
+import { insertListeningEvents, insertListeningEventsWithIds } from '../../../src/services/ingestion';
 import { queueArtistForMetadata } from '../../../src/lib/redis';
 import { Source } from '@prisma/client';
 import type { ParsedListeningEvent } from '../../../src/types/ingestion';
@@ -77,254 +70,90 @@ describe('services/ingestion', () => {
     beforeEach(() => {
         jest.clearAllMocks();
 
-        mockPrisma.album.findUnique.mockResolvedValue(null);
-        mockPrisma.album.create.mockResolvedValue({ id: 'album-uuid' });
-        mockPrisma.artist.findUnique.mockResolvedValue(null);
-        mockPrisma.artist.create.mockResolvedValue({ id: 'artist-uuid' });
-        mockPrisma.track.findUnique.mockResolvedValue(null);
-        mockPrisma.track.create.mockResolvedValue({ id: 'track-uuid' });
-        mockPrisma.listeningEvent.findUnique.mockResolvedValue(null);
-        mockPrisma.listeningEvent.create.mockResolvedValue({ id: 'event-uuid' });
-    });
+        mockPrisma.album.createMany.mockResolvedValue({ count: 0 });
+        mockPrisma.album.findMany.mockResolvedValue([{ id: 'album-uuid', spotifyId: 'album123' }]);
+        mockPrisma.artist.createMany.mockResolvedValue({ count: 0 });
+        mockPrisma.artist.findMany.mockResolvedValue([{ id: 'artist-uuid', spotifyId: 'artist123', imageUrl: null }]);
+        mockPrisma.track.createMany.mockResolvedValue({ count: 0 });
+        mockPrisma.track.findMany.mockResolvedValue([{ id: 'track-uuid', spotifyId: 'test123' }]);
+        mockPrisma.trackArtist.createMany.mockResolvedValue({ count: 0 });
+        mockPrisma.listeningEvent.findMany.mockResolvedValue([]);
+        mockPrisma.listeningEvent.createMany.mockResolvedValue({ count: 0 });
 
-    describe('insertListeningEventWithIds', () => {
-        it('inserts new event and returns added status', async () => {
-            const event = createTestEvent();
-            const result = await insertListeningEventWithIds('user-123', event);
-
-            expect(result.status).toBe('added');
-            expect(result.trackId).toBe('track-uuid');
-            expect(result.artistIds).toEqual(['artist-uuid']);
-            expect(mockPrisma.listeningEvent.create).toHaveBeenCalled();
-        });
-
-        it('skips duplicate API event', async () => {
-            mockPrisma.listeningEvent.findUnique.mockResolvedValue({
-                isEstimated: true,
-                source: Source.API,
-            });
-
-            const event = createTestEvent({ source: Source.API });
-            const result = await insertListeningEventWithIds('user-123', event);
-
-            expect(result.status).toBe('skipped');
-            expect(mockPrisma.listeningEvent.create).not.toHaveBeenCalled();
-        });
-
-        it('updates estimated event with import data', async () => {
-            mockPrisma.listeningEvent.findUnique.mockResolvedValue({
-                isEstimated: true,
-                source: Source.API,
-            });
-            mockPrisma.listeningEvent.update.mockResolvedValue({});
-
-            const event = createTestEvent({
-                source: Source.IMPORT,
-                isEstimated: false,
-            });
-            const result = await insertListeningEventWithIds('user-123', event);
-
-            expect(result.status).toBe('updated');
-            expect(mockPrisma.listeningEvent.update).toHaveBeenCalled();
-        });
-
-        it('skips when existing event is not estimated', async () => {
-            mockPrisma.listeningEvent.findUnique.mockResolvedValue({
-                isEstimated: false,
-                source: Source.IMPORT,
-            });
-
-            const event = createTestEvent({ source: Source.IMPORT });
-            const result = await insertListeningEventWithIds('user-123', event);
-
-            expect(result.status).toBe('skipped');
-        });
-
-        it('upserts existing artist with missing metadata', async () => {
-            mockPrisma.artist.findUnique.mockResolvedValue({
-                id: 'existing-artist',
-                imageUrl: null,
-            });
-
-            const event = createTestEvent();
-            await insertListeningEventWithIds('user-123', event);
-
-            expect(queueArtistForMetadata).toHaveBeenCalledWith('artist123');
-        });
-
-        it('does not queue artist with existing metadata', async () => {
-            mockPrisma.artist.findUnique.mockResolvedValue({
-                id: 'existing-artist',
-                imageUrl: 'https://example.com/artist.jpg',
-            });
-
-            const event = createTestEvent();
-            await insertListeningEventWithIds('user-123', event);
-
-            expect(queueArtistForMetadata).not.toHaveBeenCalled();
-        });
-
-        it('updates existing track name and preview', async () => {
-            mockPrisma.track.findUnique.mockResolvedValue({ id: 'existing-track' });
-            mockPrisma.track.update.mockResolvedValue({ id: 'existing-track' });
-
-            const event = createTestEvent();
-            const result = await insertListeningEventWithIds('user-123', event);
-
-            expect(mockPrisma.track.update).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    where: { id: 'existing-track' },
-                })
-            );
-            expect(result.trackId).toBe('existing-track');
-        });
-
-        it('creates track_artists join records for new track', async () => {
-            const event = createTestEvent({
-                track: {
-                    spotifyId: 'new-track-123',
-                    name: 'New Track',
-                    durationMs: 200000,
-                    previewUrl: null,
-                    album: {
-                        spotifyId: 'album123',
-                        name: 'Test Album',
-                        imageUrl: null,
-                        releaseDate: null,
-                    },
-                    artists: [
-                        { spotifyId: 'artist1', name: 'Artist One' },
-                        { spotifyId: 'artist2', name: 'Artist Two' },
-                    ],
-                },
-            });
-
-            mockPrisma.artist.create
-                .mockResolvedValueOnce({ id: 'artist-uuid-1' })
-                .mockResolvedValueOnce({ id: 'artist-uuid-2' });
-
-            await insertListeningEventWithIds('user-123', event);
-
-            expect(mockPrisma.track.create).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    data: expect.objectContaining({
-                        artists: {
-                            create: [
-                                { artistId: 'artist-uuid-1' },
-                                { artistId: 'artist-uuid-2' },
-                            ],
-                        },
-                    }),
-                })
-            );
-        });
-
-        it('creates track_artists join records for existing track with createMany', async () => {
-            mockPrisma.track.findUnique.mockResolvedValue({ id: 'existing-track' });
-            mockPrisma.track.update.mockResolvedValue({ id: 'existing-track' });
-            mockPrisma.trackArtist.createMany.mockResolvedValue({ count: 2 });
-
-            const event = createTestEvent({
-                track: {
-                    spotifyId: 'existing-track-123',
-                    name: 'Existing Track',
-                    durationMs: 200000,
-                    previewUrl: null,
-                    album: {
-                        spotifyId: 'album123',
-                        name: 'Test Album',
-                        imageUrl: null,
-                        releaseDate: null,
-                    },
-                    artists: [
-                        { spotifyId: 'artist1', name: 'Artist One' },
-                        { spotifyId: 'artist2', name: 'Artist Two' },
-                    ],
-                },
-            });
-
-            mockPrisma.artist.create
-                .mockResolvedValueOnce({ id: 'artist-uuid-1' })
-                .mockResolvedValueOnce({ id: 'artist-uuid-2' });
-
-            await insertListeningEventWithIds('user-123', event);
-
-            expect(mockPrisma.trackArtist.createMany).toHaveBeenCalledWith({
-                data: [
-                    { trackId: 'existing-track', artistId: 'artist-uuid-1' },
-                    { trackId: 'existing-track', artistId: 'artist-uuid-2' },
-                ],
-                skipDuplicates: true,
-            });
-        });
-    });
-
-    describe('insertListeningEvent', () => {
-        it('returns status string only', async () => {
-            const event = createTestEvent();
-            const result = await insertListeningEvent('user-123', event);
-
-            expect(result).toBe('added');
-        });
-    });
-
-    describe('insertListeningEvents', () => {
-        it('processes multiple events and returns summary', async () => {
-            const events = [
-                createTestEvent({ playedAt: new Date('2025-01-01T12:00:00Z') }),
-                createTestEvent({ playedAt: new Date('2025-01-01T13:00:00Z') }),
-            ];
-
-            const summary = await insertListeningEvents('user-123', events);
-
-            expect(summary.added).toBe(2);
-            expect(summary.skipped).toBe(0);
-            expect(summary.errors).toBe(0);
-        });
-
-        it('counts errors when insert fails', async () => {
-            mockPrisma.album.findUnique.mockRejectedValueOnce(new Error('DB error'));
-
-            const events = [createTestEvent()];
-            const summary = await insertListeningEvents('user-123', events);
-
-            expect(summary.errors).toBe(1);
-            expect(summary.added).toBe(0);
+        mockPrisma.$transaction.mockImplementation(async (arg: any) => {
+            if (typeof arg === 'function') return arg(mockPrisma);
+            return Promise.all(arg);
         });
     });
 
     describe('insertListeningEventsWithIds', () => {
-        it('returns both summary and results array', async () => {
-            const events = [createTestEvent()];
-
-            const { summary, results } = await insertListeningEventsWithIds('user-123', events);
+        it('inserts new event and returns added status', async () => {
+            const event = createTestEvent();
+            const { summary, results } = await insertListeningEventsWithIds('user-123', [event]);
 
             expect(summary.added).toBe(1);
-            expect(results).toHaveLength(1);
             expect(results[0].status).toBe('added');
+            expect(results[0].trackId).toBe('track-uuid');
         });
 
-        it('handles mixed success and failure', async () => {
-            mockPrisma.album.findUnique
-                .mockResolvedValueOnce(null)
-                .mockRejectedValueOnce(new Error('DB error'));
-            mockPrisma.album.create.mockResolvedValueOnce({ id: 'album-1' });
+        it('skips duplicate API events', async () => {
+            mockPrisma.listeningEvent.findMany.mockResolvedValue([
+                { trackId: 'track-uuid', playedAt: new Date('2025-01-01T12:00:00Z'), isEstimated: false, source: Source.API },
+            ]);
 
+            const event = createTestEvent({ source: Source.API });
+            const { summary } = await insertListeningEventsWithIds('user-123', [event]);
+
+            expect(summary.skipped).toBe(1);
+            expect(summary.added).toBe(0);
+        });
+
+        it('updates estimated event when import arrives', async () => {
+            mockPrisma.listeningEvent.findMany.mockResolvedValue([
+                { trackId: 'track-uuid', playedAt: new Date('2025-01-01T12:00:00Z'), isEstimated: true, source: Source.API },
+            ]);
+
+            const event = createTestEvent({ source: Source.IMPORT, isEstimated: false, msPlayed: 195000 });
+            const { summary } = await insertListeningEventsWithIds('user-123', [event]);
+
+            expect(summary.updated).toBe(1);
+            expect(mockPrisma.listeningEvent.update).toHaveBeenCalled();
+        });
+
+        it('processes multiple events in single batch', async () => {
             const events = [
                 createTestEvent({ playedAt: new Date('2025-01-01T12:00:00Z') }),
                 createTestEvent({ playedAt: new Date('2025-01-01T13:00:00Z') }),
             ];
 
-            const { summary, results } = await insertListeningEventsWithIds('user-123', events);
+            const { summary } = await insertListeningEventsWithIds('user-123', events);
 
-            expect(summary.added).toBe(1);
-            expect(summary.errors).toBe(1);
-            expect(results).toHaveLength(1);
+            expect(summary.added).toBe(2);
+            expect(mockPrisma.listeningEvent.createMany).toHaveBeenCalledTimes(1);
         });
 
-        it('performs batch user stats update after processing all events', async () => {
+        it('uses transaction for atomicity', async () => {
+            const events = [createTestEvent()];
+            await insertListeningEventsWithIds('user-123', events);
+
+            expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
+            expect(typeof mockPrisma.$transaction.mock.calls[0][0]).toBe('function');
+        });
+
+        it('handles bulk failure atomically', async () => {
+            mockPrisma.album.createMany.mockRejectedValueOnce(new Error('DB error'));
+
+            const events = [createTestEvent(), createTestEvent({ playedAt: new Date('2025-01-01T13:00:00Z') })];
+            const { summary, results } = await insertListeningEventsWithIds('user-123', events);
+
+            expect(summary.errors).toBe(2);
+            expect(summary.added).toBe(0);
+            expect(results).toHaveLength(0);
+        });
+
+        it('updates user stats in transaction', async () => {
             const events = [
-                createTestEvent({ playedAt: new Date('2025-01-01T12:00:00Z'), msPlayed: 180000 }),
+                createTestEvent({ msPlayed: 180000 }),
                 createTestEvent({ playedAt: new Date('2025-01-01T13:00:00Z'), msPlayed: 240000 }),
             ];
 
@@ -337,49 +166,88 @@ describe('services/ingestion', () => {
                     totalListeningMs: { increment: 420000 },
                 },
             });
-
-            expect(mockPrisma.user.update).toHaveBeenCalledTimes(1);
         });
 
-        it('does not call user.update when no events are added', async () => {
-            mockPrisma.listeningEvent.findUnique.mockResolvedValue({
-                isEstimated: false,
-                source: Source.IMPORT,
-            });
+        it('returns empty results for empty input', async () => {
+            const { summary, results } = await insertListeningEventsWithIds('user-123', []);
 
-            const events = [createTestEvent()];
-
-            await insertListeningEventsWithIds('user-123', events);
-
-            expect(mockPrisma.user.update).not.toHaveBeenCalled();
+            expect(summary).toEqual({ added: 0, skipped: 0, updated: 0, errors: 0 });
+            expect(results).toHaveLength(0);
         });
     });
 
-    describe('atomic transaction for single insert', () => {
-        it('uses $transaction for event creation and user stats update', async () => {
-            const event = createTestEvent();
+    describe('insertListeningEvents', () => {
+        it('returns summary only', async () => {
+            const events = [createTestEvent()];
+            const summary = await insertListeningEvents('user-123', events);
 
-            await insertListeningEventWithIds('user-123', event);
+            expect(summary.added).toBe(1);
+            expect(typeof summary).toBe('object');
+            expect('results' in summary).toBe(false);
+        });
+    });
 
-            expect(mockPrisma.$transaction).toHaveBeenCalled();
+    describe('bulk catalog operations', () => {
+        it('creates albums with createMany', async () => {
+            const events = [createTestEvent()];
+            await insertListeningEventsWithIds('user-123', events);
 
-            const transactionArg = mockPrisma.$transaction.mock.calls[0][0];
-            expect(Array.isArray(transactionArg)).toBe(true);
-            expect(transactionArg.length).toBe(2);
+            expect(mockPrisma.album.createMany).toHaveBeenCalledWith({
+                data: [{ spotifyId: 'album123', name: 'Test Album', imageUrl: 'https://example.com/album.jpg', releaseDate: '2025-01-01' }],
+                skipDuplicates: true,
+            });
         });
 
-        it('includes user stats increment in transaction', async () => {
-            const event = createTestEvent({ msPlayed: 200000 });
+        it('creates artists with createMany', async () => {
+            const events = [createTestEvent()];
+            await insertListeningEventsWithIds('user-123', events);
 
-            await insertListeningEventWithIds('user-123', event);
-
-            expect(mockPrisma.user.update).toHaveBeenCalledWith({
-                where: { id: 'user-123' },
-                data: {
-                    totalPlayCount: { increment: 1 },
-                    totalListeningMs: { increment: 200000 },
-                },
+            expect(mockPrisma.artist.createMany).toHaveBeenCalledWith({
+                data: [{ spotifyId: 'artist123', name: 'Test Artist' }],
+                skipDuplicates: true,
             });
+        });
+
+        it('queues artists without imageUrl for metadata', async () => {
+            mockPrisma.artist.findMany.mockResolvedValue([{ id: 'artist-uuid', spotifyId: 'artist123', imageUrl: null }]);
+
+            const events = [createTestEvent()];
+            await insertListeningEventsWithIds('user-123', events);
+
+            expect(queueArtistForMetadata).toHaveBeenCalledWith('artist123');
+        });
+
+        it('does not queue artists with imageUrl', async () => {
+            mockPrisma.artist.findMany.mockResolvedValue([{ id: 'artist-uuid', spotifyId: 'artist123', imageUrl: 'https://example.com' }]);
+
+            const events = [createTestEvent()];
+            await insertListeningEventsWithIds('user-123', events);
+
+            expect(queueArtistForMetadata).not.toHaveBeenCalled();
+        });
+
+        it('creates track-artist relationships', async () => {
+            const events = [createTestEvent()];
+            await insertListeningEventsWithIds('user-123', events);
+
+            expect(mockPrisma.trackArtist.createMany).toHaveBeenCalledWith({
+                data: [{ trackId: 'track-uuid', artistId: 'artist-uuid' }],
+                skipDuplicates: true,
+            });
+        });
+
+        it('deduplicates entities across events', async () => {
+            const events = [
+                createTestEvent({ playedAt: new Date('2025-01-01T12:00:00Z') }),
+                createTestEvent({ playedAt: new Date('2025-01-01T13:00:00Z') }),
+            ];
+
+            await insertListeningEventsWithIds('user-123', events);
+
+            // Same album/artist/track should only be created once
+            expect(mockPrisma.album.createMany).toHaveBeenCalledTimes(1);
+            expect(mockPrisma.artist.createMany).toHaveBeenCalledTimes(1);
+            expect(mockPrisma.track.createMany).toHaveBeenCalledTimes(1);
         });
     });
 });
