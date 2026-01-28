@@ -1,4 +1,4 @@
-# MYI-V3 / Self-Hosted Spotify Data Warehouse
+# Spotify Analytics Platform / Self-Hosted Spotify Data Warehouse
 
 > **Spotify App Status**: Development Mode
 >
@@ -8,13 +8,13 @@
 
 ## 1. Project Evolution
 
-### MYI-V1 (Fall 2024)
+### V1 (Fall 2024)
 My first full-stack project was essentially an API wrapper. It relied on a 2,000 line monolithic file that handled authentication, API logic, and data processing in a single thread. It lacked modularity and testing, which made it incapable of handling significant loads. UI rendering was slow because API calls were triggered on-demand, leading to frequent rate-limiting. The cyclomatic complexity made it impossible to maintain.
 
-### MYI-V2 (Fall 2025)
+### V2 (Fall 2025)
 This version introduced background polling and exponential backoff to manage rate limits. I added 3-tier caching and session persistence to avoid redundant authentication. While the code was more modular and included initial test cases, it still relied on in-memory caching. This meant data was lost on server restarts and heavy processing risked blocking the Node.js event loop.
 
-### MYI-V3 (Fall - Winter 2025)
+### V3 (Fall - Winter 2025)
 After a few months at my internship, I realized that the planning and testing phases were more important than the actual coding. I shifted my focus to architecture and resilience. V3 was designed to solve three persistent issues:
 
 *   **Memory Management**: Moving data processing out of the main event loop to prevent crashes.
