@@ -40,7 +40,9 @@ function AppLayoutInner({ children }: AppLayoutProps) {
     const { mode, next, previous } = useBackgroundMode();
     const { isDemo } = useDemoMode();
 
-    const { artists } = useTopArtists("year");
+    // Determine time range based on user history
+    const timeRange = user?.hasImportedHistory ? "alltime" : "year";
+    const { artists } = useTopArtists(timeRange);
     const { image: songImage } = useSongOfTheDay();
 
     const backgroundImage = React.useMemo(() => {
